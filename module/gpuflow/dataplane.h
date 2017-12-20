@@ -7,7 +7,10 @@
 #ifndef _DATA_PLANE_H_
 #define _DATA_PLANE_H_
 
-namespace gpuvs {
+#include <string>
+#include <vector>
+
+namespace gpuflow {
 
 // The data plane is responsible for initialize dpdk related attributes and functions.
 // Some of things that we need to care about: e.g. num of (logic)cores, network devices, etc.
@@ -21,13 +24,16 @@ class DataPlane final {
   void DisplayInfo();
 
  private:
+
   unsigned int num_of_cores;
 
-  // Allocate kernel network interfaces for using.
-  // We'll create two nics for ingress and egress, also, adapt to traffic generator for benchmarking.
-  void AllocKernelNIC();
+  // Note that, the tap names have limited size, we should carefully use it.
+  std::vector<std::string> tap_names { "vtap1io", "vtap2io", "vtap3io", "vtap4io" };
+
+  // Allocate tap interfaces for read/write network packets
+  void AllocTapInterface();
 };
 
-} // namespace gpuvs
+} // namespace gpuflow
 
 #endif // _DATA_PLANE_H_

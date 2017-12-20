@@ -4,12 +4,12 @@
  * We use MIT license for this project, checkout LICENSE file in the root of source tree.
  */
 
-#include "gpuvs/dataplane.h"
+#include "gpuflow/dataplane.h"
 
 int main(int argc, char *argv[]) {
-
-  gpuvs::DataPlane data_plane(argc, argv);
+  // Create a gpu accelerated data plane
+  gpuflow::DataPlane data_plane(argc, argv);
   data_plane.DisplayInfo();
-
+  while (true) {}
   return 0;
 }

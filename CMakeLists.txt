@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(gpuvs C CXX)
+project(GPUFlow C CXX)
 
 set(CMAKE_CXX_STANDARD 11)
 
@@ -7,8 +7,8 @@ set(CMAKE_CXX_STANDARD 11)
 # To use the library, must specify this path.
 set(VENDOR_DPDK_DIR ${CMAKE_SOURCE_DIR}/vendor/dpdk)
 
-add_subdirectory(module/gpuvs)
+add_subdirectory(module/gpuflow)
 
-add_executable(gpuvs module/main.cpp)
+add_executable(GPUFlow module/main.cpp)
 
-target_link_libraries(gpuvs CORE_LIBS)
+target_link_libraries(GPUFlow GPU_FLOW_LIBS)

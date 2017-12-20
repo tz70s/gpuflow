@@ -1,4 +1,4 @@
-# Gpu Accelerated Virtual Switch
+# Gpu Accelerated Flow Re-Routing
 
 ## Installation
 
@@ -12,7 +12,13 @@ sudo apt-get install -y make coreutils gcc gcc-multilib libnuma-dev python
 ### Important configuration
 
 Dpdk depends on huge page and vfio/uio, etc. You need to prepare these settings up.
-Checkout `script/setup.sh` for huge page settings.
+Checkout `script/setup.sh` for huge page settings. (However, it's not usable, currently)
+
+We can check out `usertools/dpdk-setup.sh` for open options.
+It's more convenient, even help us to build up sources.
+i.e. 
+1. choose the `x86_64-native-linuxapp-gcc` option
+2. open hugepage options, recommend value -> 1024
 
 ### Compile from source
 
@@ -34,10 +40,15 @@ make
 # Go to the source folder
 cd /path/to/this/source/folder
 
-# Compile
-# Specify a local build place
-export RTE_TARGET=build
-make
+# Currently, we don't specify the build path of dpdk as environment variable in cmake.
+# Make sure CMakeLists.txt in the root of repo specify the correct path to dpdk.
+./configure
+
+# Execution
+sudo ./build/GPUFlow
+
+# Open another terminal
+ifconfig -a
 ```
 
 ### LICENSE 
