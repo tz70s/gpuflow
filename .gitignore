@@ -53,3 +53,8 @@ dkms.conf
 
 .vagrant/
 *.log
+
+.idea/
+cmake-build-debug/
+build/
+vendor/

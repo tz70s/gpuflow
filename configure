@@ -1,0 +1,8 @@
+#!/bin/bash
+
+export DPDK_DIR=~/gvs/dpdk-stable-17.05.2/build
+mkdir -p build
+cd build
+cmake ..
+
+make
