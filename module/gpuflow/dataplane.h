@@ -9,6 +9,7 @@
 
 #include <string>
 #include <vector>
+#include "dataplane_core.h"
 
 namespace gpuflow {
 
@@ -26,6 +27,7 @@ class DataPlane final {
  private:
 
   unsigned int num_of_cores;
+  DataPlaneCore data_plane_core;
 
   // Note that, the tap names have limited size, we should carefully use it.
   std::vector<std::string> tap_names { "vtap1io", "vtap2io", "vtap3io", "vtap4io" };

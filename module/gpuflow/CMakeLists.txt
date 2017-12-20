@@ -1,5 +1,3 @@
-include_directories(${VENDOR_DPDK_DIR}/x86_64-native-linuxapp-gcc/include)
-link_directories(${VENDOR_DPDK_DIR}/x86_64-native-linuxapp-gcc/lib)
 
 file(GLOB_RECURSE CORE_SOURCES "*.cpp")
 file(GLOB_RECURSE CORE_HEADERS "*.h")

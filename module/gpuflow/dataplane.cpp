@@ -6,14 +6,12 @@
 
 #include "dataplane.h"
 #include <iostream>
-#include <vector>
-#include <rte_eal.h>
-#include <rte_ethdev.h>
+
+#ifdef __linux__
+#include <cstring>
 #include <cstdlib>
 #include <cstdio>
 #include <unistd.h>
-
-#ifdef __linux__
 #include <netinet/in.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
@@ -27,7 +25,7 @@ namespace nics {
 
 // Create a tap network interface, or use existing one with same name.
 #ifdef __linux__
-static int create_tap(char *name) {
+static int CreateTap(char *name) {
   // Open tun file descriptor
   int tun_fd = open("/dev/net/tun", O_RDWR);
   if (tun_fd < 0) {
@@ -54,14 +52,9 @@ static int create_tap(char *name) {
 
 } // namespace nics
 
-DataPlane::DataPlane(int argc, char **argv, unsigned int num_of_cores) : num_of_cores(num_of_cores) {
-  int ret = rte_eal_init(argc, argv);
-  if (ret < 0) {
-    rte_exit(EXIT_FAILURE, "ERROR with EAL initialization\n");
-  }
-  argc -= ret;
-  argv += ret;
-
+DataPlane::DataPlane(int argc, char **argv, unsigned int num_of_cores) : num_of_cores(num_of_cores),
+  data_plane_core(argc, argv, num_of_cores) {
+  // Allocate tap interfaces.
   AllocTapInterface();
 }
 
@@ -77,7 +70,7 @@ void DataPlane::AllocTapInterface() {
   // Create taps
   std::cout << "GPUFlow : Create taps for re-routing flows..." << std::endl;
   for (auto tap_name : tap_names) {
-    ret = nics::create_tap((char *)tap_name.c_str());
+    ret = nics::CreateTap((char *)tap_name.c_str());
     if (ret < 0) {
       std::cerr << "Problem on creating taps" << std::endl;
       exit(1);
