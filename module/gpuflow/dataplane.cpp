@@ -65,10 +65,6 @@ void DataPlane::DisplayInfo() {
             << std::endl;
 }
 
-int rewrap(__attribute__((unused)) void *arg) {
-
-}
-
 int DataPlane::ServeProcessingLoop(DataPlaneProcessor *data_plane_processor) {
   // TODO: Match the desired type.
   data_plane_core.ServeProcessingLoop(SayHelloProcessor::LCoreFunction);
