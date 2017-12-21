@@ -6,7 +6,6 @@
 
 #include "dataplane.h"
 #include <iostream>
-#include "dataplane_processor.h"
 
 #ifdef __linux__
 #include <cstring>
@@ -54,9 +53,10 @@ static int CreateTap(char *name) {
 } // namespace nics
 
 DataPlane::DataPlane(int argc, char **argv, unsigned int num_of_cores) : num_of_cores(num_of_cores),
-  data_plane_core(argc, argv, num_of_cores) {
+  data_plane_core_ptr(nullptr) {
   // Allocate tap interfaces.
   AllocTapInterface();
+  data_plane_core_ptr = new DataPlaneCore(argc, argv, this, num_of_cores);
 }
 
 void DataPlane::DisplayInfo() {
@@ -65,18 +65,8 @@ void DataPlane::DisplayInfo() {
             << std::endl;
 }
 
-int DataPlane::ServeProcessingLoop(DataPlaneProcessor *data_plane_processor) {
-  // Match the desired type.
-  lcore_function_t *fptr;
-  switch (data_plane_processor->TypeOf()) {
-    case TypeSayHelloProcessor:
-      fptr = (lcore_function_t *)SayHelloProcessor::LCoreFunction;
-      break;
-    default:
-      std::cerr << "Can't get the processor type, abort" << std::endl;
-      exit(1);
-  }
-  data_plane_core.ServeProcessingLoop(fptr);
+void DataPlane::ServeProcessingLoop(int DataPlaneProcessor_t) {
+  data_plane_core_ptr->ServeProcessingLoop(DataPlaneProcessor_t);
 }
 
 void DataPlane::AllocTapInterface() {
@@ -89,6 +79,9 @@ void DataPlane::AllocTapInterface() {
     if (ret < 0) {
       std::cerr << "Problem on creating taps" << std::endl;
       exit(1);
+    } else {
+      // Collect tap_fd.
+      tap_fds.push_back(ret);
     }
   }
 #else

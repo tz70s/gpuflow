@@ -13,22 +13,27 @@
 #include <rte_config.h>
 #include <rte_eal.h>
 #include "dataplane_processor.h"
+#include "dataplane.h"
 
 namespace gpuflow {
 
+// Forward declaration, for circular dependency.
+class DataPlane;
+
 class DataPlaneCore {
  public:
-  DataPlaneCore(int argc, char *argv[], unsigned int num_of_cores = 4);
-
-  void ServeProcessingLoop(lcore_function_t *);
+  DataPlaneCore(int argc, char *argv[], DataPlane *data_plane_ptr, unsigned int num_of_cores = 4);
+  void ServeProcessingLoop(int);
 
  private:
   unsigned int num_of_cores;
-  unsigned const int NUM_BYTES_MBUF = 8192;
-  unsigned const int MEMPOOL_CACHE_SIZE = 256;
+  unsigned int NUM_BYTES_MBUF = 1024;
+  unsigned int MEMPOOL_CACHE_SIZE = 32;
+
+  std::vector<int> *tap_fds;
 
   int CreateMbufPool();
-  rte_mempool *pkt_mbuf_pool;
+  struct rte_mempool *pkt_mbuf_pool;
 
 };
 

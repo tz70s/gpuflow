@@ -8,24 +8,39 @@
 #define _DATAPLANE_PROCESSOR_H_
 
 #include <rte_launch.h>
+#include <vector>
+#include <string>
 
 namespace gpuflow {
 
 enum {
-  TypeSayHelloProcessor
+  SayHelloProcessor_t,
+  DumpPacketProcessor_t
 };
 
 class DataPlaneProcessor {
  public:
-  virtual int TypeOf() = 0;
+  virtual void LCoreFunctions() = 0;
 };
 
 class SayHelloProcessor : public DataPlaneProcessor {
  public:
-  int TypeOf() override;
-  static int LCoreFunction(__attribute__((unused)) void *args);
+  void LCoreFunctions() override;
 };
 
+class DumpPacketProcessor : public DataPlaneProcessor {
+ public:
+  explicit DumpPacketProcessor(std::vector<int> *tap_fds, struct rte_mempool *pkt_mbuf_pool)
+          : tap_fds(tap_fds), pkt_mbuf_pool(pkt_mbuf_pool) {};
+
+  void LCoreFunctions() override;
+
+ private:
+  std::vector<int> *tap_fds;
+
+  // FIXME: Thread safe?
+  struct rte_mempool *pkt_mbuf_pool;
+};
 } // namespace gpuflow
 
 #endif // _DATAPLANE_PROCESSOR_H_
