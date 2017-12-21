@@ -19,18 +19,26 @@ DataPlaneCore::DataPlaneCore(int argc, char **argv, unsigned int num_of_cores) :
 
   // Create and initialize memory buffer pool
   if (CreateMbufPool() < 0) {
-    exit(1);
+    // exit(1);
   }
 }
 
 int DataPlaneCore::CreateMbufPool() {
   // Create mbuf pool
-  pkt_mbuf_pool = rte_pktmbuf_pool_create("packet_mbuf_pool", NUM_BYTES_MBUF,
-                                          MEMPOOL_CACHE_SIZE, 0, MBUF_DATA_SIZE, rte_socket_id());
+  pkt_mbuf_pool = rte_pktmbuf_pool_create("pkt_mbuf_pool", NUM_BYTES_MBUF,
+                                          MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
   if (pkt_mbuf_pool == nullptr) {
-    std::cerr << "Can't initialize memory buffer pool" << std::endl;
+    std::cerr << "Can't initialize memory buffer pool, rte_errno : " << rte_strerror(rte_errno) << std::endl;
     return -1;
   }
 }
 
+void DataPlaneCore::ServeProcessingLoop(lcore_function_t *processor) {
+  // Launch lcore for processing
+  unsigned int lcore_id;
+  RTE_LCORE_FOREACH_SLAVE(lcore_id) {
+    rte_eal_remote_launch(processor, nullptr, lcore_id);
+  }
+  rte_eal_mp_wait_lcore();
+}
 } // namespace gpuflow

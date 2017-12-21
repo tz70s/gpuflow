@@ -42,6 +42,6 @@ SET(DPDK_LIBS
         rte_pmd_ena
         rte_pmd_nfp)
 
-add_library(GPU_FLOW_LIBS ${CORE_SOURCES} ${CORE_HEADERS})
+add_library(GPU_FLOW_LIBS ${CORE_SOURCES} ${CORE_HEADERS} dataplane_processor.cpp dataplane_processor.h)
 
-target_link_libraries(GPU_FLOW_LIBS ${CMAKE_THREAD_LIBS_INIT} ${DPDK_LIBS} ${CMAKE_DL_LIBS})
+target_link_libraries(GPU_FLOW_LIBS ${CMAKE_THREAD_LIBS_INIT} ${DPDK_LIBS} ${CMAKE_DL_LIBS} dl rt)

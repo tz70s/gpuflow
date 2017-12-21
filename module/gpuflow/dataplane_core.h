@@ -10,6 +10,8 @@
 #include <rte_ethdev.h>
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
+#include <rte_config.h>
+#include "dataplane_processor.h"
 
 namespace gpuflow {
 
@@ -17,12 +19,12 @@ class DataPlaneCore {
  public:
   DataPlaneCore(int argc, char *argv[], unsigned int num_of_cores = 4);
 
+  void ServeProcessingLoop(lcore_function_t *);
+
  private:
   unsigned int num_of_cores;
   unsigned const int NUM_BYTES_MBUF = 8192;
-  unsigned const int MEMPOOL_CACHE_SIZE = 32;
-  unsigned const short MAX_PACKET_SIZE = 2048;
-  unsigned const short MBUF_DATA_SIZE = MAX_PACKET_SIZE + RTE_PKTMBUF_HEADROOM;
+  unsigned const int MEMPOOL_CACHE_SIZE = 256;
 
   int CreateMbufPool();
   rte_mempool *pkt_mbuf_pool;

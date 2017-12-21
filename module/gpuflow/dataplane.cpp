@@ -6,6 +6,7 @@
 
 #include "dataplane.h"
 #include <iostream>
+#include "dataplane_processor.h"
 
 #ifdef __linux__
 #include <cstring>
@@ -62,6 +63,15 @@ void DataPlane::DisplayInfo() {
   std::cout << "Display the DPDK related information : \n\t"
             << "Num of cores : " << num_of_cores
             << std::endl;
+}
+
+int rewrap(__attribute__((unused)) void *arg) {
+
+}
+
+int DataPlane::ServeProcessingLoop(DataPlaneProcessor *data_plane_processor) {
+  // TODO: Match the desired type.
+  data_plane_core.ServeProcessingLoop(SayHelloProcessor::LCoreFunction);
 }
 
 void DataPlane::AllocTapInterface() {

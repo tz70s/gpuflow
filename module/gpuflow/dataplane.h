@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include "dataplane_core.h"
+#include "dataplane_processor.h"
 
 namespace gpuflow {
 
@@ -23,6 +24,9 @@ class DataPlane final {
 
   // Display the information, configuration of core.
   void DisplayInfo();
+
+  // Serve the processing loop, which are different processing contents.
+  int ServeProcessingLoop(DataPlaneProcessor *data_plane_processor);
 
  private:
 
