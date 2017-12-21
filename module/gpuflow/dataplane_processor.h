@@ -11,10 +11,18 @@
 
 namespace gpuflow {
 
-class DataPlaneProcessor {};
+enum {
+  TypeSayHelloProcessor
+};
+
+class DataPlaneProcessor {
+ public:
+  virtual int TypeOf() = 0;
+};
 
 class SayHelloProcessor : public DataPlaneProcessor {
  public:
+  int TypeOf() override;
   static int LCoreFunction(__attribute__((unused)) void *args);
 };
 

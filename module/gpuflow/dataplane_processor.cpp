@@ -10,6 +10,10 @@
 
 namespace gpuflow {
 
+int SayHelloProcessor::TypeOf() {
+  return TypeSayHelloProcessor;
+}
+
 int SayHelloProcessor::LCoreFunction(__attribute__((unused)) void *args) {
   unsigned int self_lcore_id = rte_lcore_id();
   std::cout << "Hi, I'm " << self_lcore_id << " lcore" << std::endl;

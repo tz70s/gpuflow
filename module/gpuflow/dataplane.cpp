@@ -66,8 +66,17 @@ void DataPlane::DisplayInfo() {
 }
 
 int DataPlane::ServeProcessingLoop(DataPlaneProcessor *data_plane_processor) {
-  // TODO: Match the desired type.
-  data_plane_core.ServeProcessingLoop(SayHelloProcessor::LCoreFunction);
+  // Match the desired type.
+  lcore_function_t *fptr;
+  switch (data_plane_processor->TypeOf()) {
+    case TypeSayHelloProcessor:
+      fptr = (lcore_function_t *)SayHelloProcessor::LCoreFunction;
+      break;
+    default:
+      std::cerr << "Can't get the processor type, abort" << std::endl;
+      exit(1);
+  }
+  data_plane_core.ServeProcessingLoop(fptr);
 }
 
 void DataPlane::AllocTapInterface() {

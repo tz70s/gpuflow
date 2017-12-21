@@ -11,8 +11,8 @@ int main(int argc, char *argv[]) {
   // Create a gpu accelerated data plane
   gpuflow::DataPlane data_plane(argc, argv);
   data_plane.DisplayInfo();
-  gpuflow::SayHelloProcessor *say_hello_processor;
-  data_plane.ServeProcessingLoop(say_hello_processor);
+  gpuflow::DataPlaneProcessor *processor = new gpuflow::SayHelloProcessor;
+  data_plane.ServeProcessingLoop(processor);
   while (true) {}
   return 0;
 }
