@@ -1,4 +1,9 @@
 #! /bin/bash
+#
+# Copyright 2017 of original authors and authors.
+#
+# We use MIT license for this project, checkout LICENSE file in the root of source tree.
+#
 
 # Cutting from dpdk setup script for customizing, need to add the re-distribution license.
 
