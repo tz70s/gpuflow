@@ -61,11 +61,14 @@ void DataPlane::InitializePortConf() {
   // 3. VLAN filtering disabled.
   // 4. Jumbo Frame Support disabled.
   // 5. CRC stripped by hardware.
-  port_conf.rxmode.header_split = 0;
-  port_conf.rxmode.hw_ip_checksum = 0;
+  port_conf.rxmode.header_split = 1;
+  port_conf.rxmode.hw_ip_checksum = 1;
   port_conf.rxmode.hw_vlan_filter = 0;
+  port_conf.rxmode.hw_vlan_strip = 0;
+  port_conf.rxmode.hw_vlan_extend = 0;
   port_conf.rxmode.jumbo_frame = 0;
   port_conf.rxmode.hw_strip_crc = 1;
+  // Single queue mode
   port_conf.txmode.mq_mode = ETH_MQ_TX_NONE;
 }
 
