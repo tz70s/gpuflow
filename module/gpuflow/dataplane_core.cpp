@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <rte_ip.h>
+#include <rte_ethdev.h>
 #include "dataplane_core.h"
 
 namespace gpuflow {
@@ -40,23 +41,42 @@ void DumpPacketCore::LCoreFunctions() {
   RTE_LCORE_FOREACH_SLAVE(lcore_id) {
     ret = rte_eal_remote_launch([](void *arg) -> int {
       unsigned int self_lcore_id = rte_lcore_id();
+      unsigned int port_id = (self_lcore_id > 0) ? self_lcore_id -1 : self_lcore_id;
       auto *self = (DumpPacketCore *)arg;
       while(true) {
-        int ret = 0;
-        struct rte_mbuf *mbuf = rte_pktmbuf_alloc(self->pkt_mbuf_pool);
-        if (mbuf == nullptr) continue;
-        // ret = read(self->tap_fds->at(0), rte_pktmbuf_mtod(mbuf, struct ether_hdr *), 2048);
-        if (ret < 0) {
-          std::cerr << "Can't read from tap_fd" << std::endl;
-          exit(1);
+        struct rte_mbuf *pkts_burst[32];
+        const unsigned int nb_rx = rte_eth_rx_burst(port_id, 0, pkts_burst, 32);
+        for (unsigned int i = 0; i < nb_rx; ++i) {
+          struct rte_mbuf *mbuf = pkts_burst[i];
+          std::cout << mbuf->pkt_len << std::endl;
         }
-        // FIXME : Can't work on reading icmp frame
-        std::cout << "Read : " << rte_pktmbuf_data_len(mbuf) << ", ret: " << ret << std::endl;
-        std::cout << (char *)(mbuf->userdata) << std::endl;
-        mbuf->nb_segs = 1;
-        mbuf->next = nullptr;
-        mbuf->pkt_len = (uint16_t)ret;
-        mbuf->data_len = (uint16_t)ret;
+      }
+    }, (void *)this, lcore_id);
+    if (ret < 0) {
+      std::cerr << "Error occured on executing DumpPacketCore LCoreFunctions, abort" << std::endl;
+      exit(1);
+    }
+  }
+  rte_eal_mp_wait_lcore();
+}
+
+void BasicForwardCore::LCoreFunctions() {
+  unsigned int lcore_id;
+  int ret;
+
+  RTE_LCORE_FOREACH_SLAVE(lcore_id) {
+    ret = rte_eal_remote_launch([](void *arg) -> int {
+      unsigned int self_lcore_id = rte_lcore_id();
+      unsigned int port_id = (self_lcore_id > 0) ? self_lcore_id -1 : self_lcore_id;
+      auto *self = (BasicForwardCore *)arg;
+      while(true) {
+        struct rte_mbuf *pkts_burst[32];
+        const unsigned int nb_rx = rte_eth_rx_burst(port_id, 0, pkts_burst, 32);
+        for (unsigned int i = 0; i < nb_rx; ++i) {
+          struct rte_mbuf *mbuf = pkts_burst[i];
+          std::cout << mbuf->pkt_len << std::endl;
+          const uint16_t nb_tx = rte_eth_tx_burst(1, 0, &mbuf, nb_rx);
+        }
       }
     }, (void *)this, lcore_id);
     if (ret < 0) {

@@ -16,12 +16,13 @@ namespace gpuflow {
 
 enum {
   SayHelloCore_t,
-  DumpPacketCore_t
+  DumpPacketCore_t,
+  BasicForwardCore_t
 };
 
 class DataPlaneCore {
  public:
-  virtual void LCoreFunctions() = 0;
+virtual void LCoreFunctions() = 0;
 };
 
 class SayHelloCore : public DataPlaneCore {
@@ -40,6 +41,17 @@ class DumpPacketCore : public DataPlaneCore {
   // FIXME: Thread safe?
   rte_mempool *pkt_mbuf_pool;
 };
+
+class BasicForwardCore : public DataPlaneCore {
+ public:
+  BasicForwardCore(rte_mempool *pkt_mbuf_pool) : pkt_mbuf_pool(pkt_mbuf_pool) {};
+
+  void LCoreFunctions() override;
+
+ private:
+  rte_mempool *pkt_mbuf_pool;
+};
+
 } // namespace gpuflow
 
 #endif // _DATAPLANE_Core_H_

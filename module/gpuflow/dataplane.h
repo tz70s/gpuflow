@@ -26,7 +26,11 @@ class DataPlane {
   unsigned int NUM_BYTES_MBUF = 1024;
   unsigned int MEMPOOL_CACHE_SIZE = 32;
 
+  struct rte_eth_conf port_conf = {};
   int CreateMbufPool();
+  void InitializePortConf();
+  int InitializePorts(uint8_t port);
+
   rte_mempool *pkt_mbuf_pool;
 
 };
