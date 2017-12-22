@@ -4,53 +4,67 @@
  * We use MIT license for this project, checkout LICENSE file in the root of source tree.
  */
 
-#include "dataplane_core.h"
-
+#include <rte_lcore.h>
 #include <iostream>
-#include <rte_mempool.h>
+#include <rte_mbuf.h>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h>
+#include <rte_ip.h>
+#include "dataplane_core.h"
 
 namespace gpuflow {
 
-DataPlaneCore::DataPlaneCore(int argc, char *argv[], DataPlane *data_plane_ptr, unsigned int num_of_cores) :
-        num_of_cores(num_of_cores),
-        tap_fds(data_plane_ptr->retrieve_tap_fds()), pkt_mbuf_pool(nullptr) {
-  int ret = rte_eal_init(argc, argv);
-  if (ret < 0) {
-    rte_exit(EXIT_FAILURE, "ERROR with EAL initialization\n");
-  }
-  // Create and initialize memory buffer pool
-  if (CreateMbufPool() < 0) {
-    std::cerr << "Error occurred on creating memory buffer pool of dpdk, abort" << std::endl;
-    exit(1);
-  }
-}
-
-int DataPlaneCore::CreateMbufPool() {
-  // Create mbuf pool
-  pkt_mbuf_pool = rte_pktmbuf_pool_create("dataplane_mem_pool", NUM_BYTES_MBUF,
-                                          MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-  if (pkt_mbuf_pool == nullptr) {
-    std::cerr << "Can't initialize memory buffer pool, rte_errno : " << rte_strerror(-rte_errno) << std::endl;
-    return -1;
-  }
-  return 0;
-}
-
-void DataPlaneCore::ServeProcessingLoop(int DataPlaneProcessor_t) {
-  DataPlaneProcessor *data_plane_processor;
-  // Match processor type
-  switch (DataPlaneProcessor_t) {
-    case SayHelloProcessor_t:
-      data_plane_processor = new SayHelloProcessor();
-      break;
-    case DumpPacketProcessor_t:
-      data_plane_processor = new DumpPacketProcessor(tap_fds, pkt_mbuf_pool);
-      break;
-    default:
-      std::cerr << "No matching processor, abort" << std::endl;
+void SayHelloCore::LCoreFunctions() {
+  // Launch lcore for processing
+  unsigned int lcore_id;
+  int ret;
+  RTE_LCORE_FOREACH_SLAVE(lcore_id) {
+    ret = rte_eal_remote_launch([](void *) -> int {
+            unsigned int self_lcore_id = rte_lcore_id();
+            std::cout << "Hi, I'm " << self_lcore_id << " lcore" << std::endl;
+            return 0;
+    }, nullptr, lcore_id);
+    if (ret < 0) {
+      std::cerr << "Error occured, in ret " << ret << std::endl;
       exit(1);
+    }
   }
-  data_plane_processor->LCoreFunctions();
+  rte_eal_mp_wait_lcore();
+}
+
+void DumpPacketCore::LCoreFunctions() {
+  unsigned int lcore_id;
+  int ret;
+
+  RTE_LCORE_FOREACH_SLAVE(lcore_id) {
+    ret = rte_eal_remote_launch([](void *arg) -> int {
+      unsigned int self_lcore_id = rte_lcore_id();
+      auto *self = (DumpPacketCore *)arg;
+      while(true) {
+        int ret = 0;
+        struct rte_mbuf *mbuf = rte_pktmbuf_alloc(self->pkt_mbuf_pool);
+        if (mbuf == nullptr) continue;
+        // ret = read(self->tap_fds->at(0), rte_pktmbuf_mtod(mbuf, struct ether_hdr *), 2048);
+        if (ret < 0) {
+          std::cerr << "Can't read from tap_fd" << std::endl;
+          exit(1);
+        }
+        // FIXME : Can't work on reading icmp frame
+        std::cout << "Read : " << rte_pktmbuf_data_len(mbuf) << ", ret: " << ret << std::endl;
+        std::cout << (char *)(mbuf->userdata) << std::endl;
+        mbuf->nb_segs = 1;
+        mbuf->next = nullptr;
+        mbuf->pkt_len = (uint16_t)ret;
+        mbuf->data_len = (uint16_t)ret;
+      }
+    }, (void *)this, lcore_id);
+    if (ret < 0) {
+      std::cerr << "Error occured on executing DumpPacketCore LCoreFunctions, abort" << std::endl;
+      exit(1);
+    }
+  }
+  rte_eal_mp_wait_lcore();
 }
 
 } // namespace gpuflow

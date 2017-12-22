@@ -1,0 +1,3 @@
+#!/bin/bash
+
+./build/GPUFlow --vdev=net_tap0 --vdev=net_tap1 --vdev=net_tap2 --vdev=net_tap3

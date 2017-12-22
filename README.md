@@ -45,7 +45,10 @@ cd /path/to/this/source/folder
 ./configure
 
 # Execution
-sudo ./build/GPUFlow
+sudo ./run
+
+# Or
+sudo ./build/GPUFlow --vdev=net_tap0 --vdev=net_tap1 --vdev=net_tap2 --vdev=net_tap3
 
 # Open another terminal
 ifconfig -a

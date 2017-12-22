@@ -5,89 +5,59 @@
  */
 
 #include "dataplane.h"
-#include <iostream>
 
-#ifdef __linux__
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <linux/if.h>
-#include <linux/if_tun.h>
-#include <sys/ioctl.h>
-#include <fcntl.h>
-#endif
+#include <iostream>
+#include <rte_mempool.h>
 
 namespace gpuflow {
 
-namespace nics {
-
-// Create a tap network interface, or use existing one with same name.
-#ifdef __linux__
-static int CreateTap(char *name) {
-  // Open tun file descriptor
-  int tun_fd = open("/dev/net/tun", O_RDWR);
-  if (tun_fd < 0) {
-    std::cerr << "Can't open tun fd" << std::endl;
+DataPlane::DataPlane(int argc, char *argv[], unsigned int num_of_cores) :
+        num_of_cores(num_of_cores),
+        pkt_mbuf_pool(nullptr) {
+  // Initialize eal
+  int ret = rte_eal_init(argc, argv);
+  if (ret < 0) {
+    rte_exit(EXIT_FAILURE, "ERROR with EAL initialization\n");
+  }
+  // Find binding eth devs
+  int num_of_eth_devs = rte_eth_dev_count();
+  if (num_of_eth_devs <= 0) {
+    std::cerr << "Didn't find any eth devices, abort" << std::endl;
     exit(1);
   }
-  struct ifreq ifr;
-  memset(&ifr, 0, sizeof(ifr));
-  // TAP device without packet information
-  ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
-  if (name && *name) {
-    snprintf(ifr.ifr_name, IFNAMSIZ, "%s", name);
+  // Create and initialize memory buffer pool
+  if (CreateMbufPool() < 0) {
+    std::cerr << "Error occurred on creating memory buffer pool of dpdk, abort" << std::endl;
+    exit(1);
   }
-  int ret = ioctl(tun_fd, TUNSETIFF, (void *) &ifr);
-  if (ret < 0) {
-    std::cerr << "Error occured in ioctl tun/tap" << std::endl;
-    close(tun_fd);
-    return ret;
+}
+
+int DataPlane::CreateMbufPool() {
+  // Create mbuf pool
+  pkt_mbuf_pool = rte_pktmbuf_pool_create("dataplane_mem_pool", NUM_BYTES_MBUF,
+                                          MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+  if (pkt_mbuf_pool == nullptr) {
+    std::cerr << "Can't initialize memory buffer pool, rte_errno : " << rte_strerror(-rte_errno) << std::endl;
+    return -1;
   }
-  if (name) snprintf(name, IFNAMSIZ, "%s", ifr.ifr_name);
-  return tun_fd;
-}
-#endif
-
-} // namespace nics
-
-DataPlane::DataPlane(int argc, char **argv, unsigned int num_of_cores) : num_of_cores(num_of_cores),
-  data_plane_core_ptr(nullptr) {
-  // Allocate tap interfaces.
-  AllocTapInterface();
-  data_plane_core_ptr = new DataPlaneCore(argc, argv, this, num_of_cores);
+  return 0;
 }
 
-void DataPlane::DisplayInfo() {
-  std::cout << "Display the DPDK related information : \n\t"
-            << "Num of cores : " << num_of_cores
-            << std::endl;
-}
-
-void DataPlane::ServeProcessingLoop(int DataPlaneProcessor_t) {
-  data_plane_core_ptr->ServeProcessingLoop(DataPlaneProcessor_t);
-}
-
-void DataPlane::AllocTapInterface() {
-#ifdef __linux__
-  int ret = 0;
-  // Create taps
-  std::cout << "GPUFlow : Create taps for re-routing flows..." << std::endl;
-  for (auto tap_name : tap_names) {
-    ret = nics::CreateTap((char *)tap_name.c_str());
-    if (ret < 0) {
-      std::cerr << "Problem on creating taps" << std::endl;
+void DataPlane::ServeProcessingLoop(int DataPlaneCore_t) {
+  DataPlaneCore *data_plane_core;
+  // Match Core type
+  switch (DataPlaneCore_t) {
+    case SayHelloCore_t:
+      data_plane_core = new SayHelloCore();
+      break;
+    case DumpPacketCore_t:
+      data_plane_core = new DumpPacketCore(pkt_mbuf_pool);
+      break;
+    default:
+      std::cerr << "No matching Core, abort" << std::endl;
       exit(1);
-    } else {
-      // Collect tap_fd.
-      tap_fds.push_back(ret);
-    }
   }
-#else
-  std::cerr << "Not supported platform, is linux only." << std::endl;
-  exit(1);
-#endif
+  data_plane_core->LCoreFunctions();
 }
 
 } // namespace gpuflow

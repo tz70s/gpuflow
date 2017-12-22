@@ -27,6 +27,7 @@ SET(DPDK_LIBS
         rte_lpm
         rte_meter
         rte_pmd_vmxnet3_uio
+        rte_pmd_tap
         rte_sched
         rte_timer
         rte_cmdline
