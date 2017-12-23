@@ -10,10 +10,12 @@ SET(CMAKE_CXX_FLAGS "-fno-stack-protector -Wall -Wextra -Wno-unused-parameter -g
 SET(CMAKE_C_FLAGS "-fno-stack-protector -Wall -Wextra -Wno-unused-parameter -g -O3 -std=gnu11 -march=native -msse4.2")
 
 # For cross-platform compilation
-set(VENDOR_DPDK_DIR ${CMAKE_SOURCE_DIR}/vendor/dpdk-08)
-# Directory of dpdk
-# set(VENDOR_DPDK_DIR $ENV{RTE_SDK})
-
+if(EXISTS ${CMAKE_SOURCE_DIR}/vendor/dpdk-08)
+  set(VENDOR_DPDK_DIR ${CMAKE_SOURCE_DIR}/vendor/dpdk-08)
+else()
+  # Directory of dpdk
+  set(VENDOR_DPDK_DIR $ENV{RTE_SDK})
+endif()
 include_directories(${VENDOR_DPDK_DIR}/x86_64-native-linuxapp-gcc/include)
 link_directories(${VENDOR_DPDK_DIR}/x86_64-native-linuxapp-gcc/lib)
 
