@@ -44,14 +44,20 @@ cd /path/to/this/source/folder
 # Make sure CMakeLists.txt in the root of repo specify the correct path to dpdk.
 ./configure
 
-# Execution
-sudo ./run
+# Install cli program.
+# Sudo required
+sudo pip install -e .
 
-# Or
-sudo ./build/GPUFlow --vdev=net_tap0 --vdev=net_tap1 --vdev=net_tap2 --vdev=net_tap3
+# Print usage
+sudo gflow
 
-# Open another terminal
-ifconfig -a
+# Exec, pass the root path of source tree.
+sudo gflow run .
+
+# Look at deeper help
+sudo gflow netns --help
+
+# Open another terminal for test
 ```
 
 ### LICENSE 

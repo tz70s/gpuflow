@@ -58,3 +58,6 @@ dkms.conf
 cmake-build-debug/
 build/
 vendor/
+
+*.pyc
+*.egg-info/
