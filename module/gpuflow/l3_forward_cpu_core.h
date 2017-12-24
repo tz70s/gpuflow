@@ -10,33 +10,21 @@
 #include <rte_lpm.h>
 #include <rte_ip.h>
 #include "dataplane_core.h"
+#include "dataplane_lpm.h"
 
 namespace gpuflow {
 
-namespace route {
-
-struct IPv4LPMRoute {
-  uint32_t ip;
-  uint8_t depth;
-  uint8_t if_out;
-};
-
-} // namespace route
-
 class L3ForwardCPUCore : public DataPlaneCore {
  public:
-  L3ForwardCPUCore(std::vector<ether_addr> *mac_addresses_ptr);
+  explicit L3ForwardCPUCore(std::vector<ether_addr> *mac_addresses_ptr);
   void LCoreFunctions() override;
 
  private:
   std::vector<ether_addr> *mac_addresses_ptr;
-  unsigned const int MAX_LPM_IPV4_RULES = 1024;
-  route::IPv4LPMRoute ipv4_lpm_route_array[5];
-  void CreateIPv4LPMRouteArray();
-  void CreateLPMTable(int socket_id);
-  inline uint16_t LPMLookUp(ipv4_hdr *ipv4_header, uint16_t port_id, int socket_id);
+  DataPlaneLPMv4 data_plane_lpm_v4;
+  DataPlaneLPMv6 data_plane_lpm_v6;
   void SimpleLPMForward(rte_mbuf *mbuf, unsigned int port_id, int socket_id);
-  rte_lpm *ipv4_lpm_lookup_struct[1];
+
 };
 
 } // namespace gpuflow
