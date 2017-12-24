@@ -10,6 +10,6 @@
 int main(int argc, char *argv[]) {
   // Create a gpu accelerated data plane
   gpuflow::DataPlane data_plane(argc, argv);
-  data_plane.ServeProcessingLoop(gpuflow::BasicForwardCore_t);
+  data_plane.ServeProcessingLoop(gpuflow::L3ForwardCPUCore_t);
   return 0;
 }

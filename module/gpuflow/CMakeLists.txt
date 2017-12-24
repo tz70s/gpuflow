@@ -47,6 +47,6 @@ SET(ALL_LIBS
         pthread dl rt
         -Wl,--no-whole-archive)
 
-add_library(GPU_FLOW_LIBS ${CORE_SOURCES} ${CORE_HEADERS})
+add_library(GPU_FLOW_LIBS ${CORE_SOURCES} ${CORE_HEADERS} l3_forward_cpu_core.cpp l3_forward_cpu_core.h)
 
 target_link_libraries(GPU_FLOW_LIBS ${ALL_LIBS})

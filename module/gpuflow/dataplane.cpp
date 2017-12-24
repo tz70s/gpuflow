@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <rte_mempool.h>
+#include "l3_forward_cpu_core.h"
 
 namespace gpuflow {
 
@@ -61,13 +62,14 @@ void DataPlane::InitializePortConf() {
   // 3. VLAN filtering disabled.
   // 4. Jumbo Frame Support disabled.
   // 5. CRC stripped by hardware.
-  port_conf.rxmode.header_split = 1;
+  port_conf.rxmode.split_hdr_size = 0;
+  port_conf.rxmode.header_split = 0;
   port_conf.rxmode.hw_ip_checksum = 1;
   port_conf.rxmode.hw_vlan_filter = 0;
   port_conf.rxmode.hw_vlan_strip = 0;
   port_conf.rxmode.hw_vlan_extend = 0;
   port_conf.rxmode.jumbo_frame = 0;
-  port_conf.rxmode.hw_strip_crc = 1;
+  port_conf.rxmode.hw_strip_crc = 0;
   // Single queue mode
   port_conf.txmode.mq_mode = ETH_MQ_TX_NONE;
 }
@@ -129,6 +131,9 @@ void DataPlane::ServeProcessingLoop(int DataPlaneCore_t) {
       break;
     case BasicForwardCore_t:
       data_plane_core = new BasicForwardCore(pkt_mbuf_pool);
+      break;
+    case L3ForwardCPUCore_t:
+      data_plane_core = new L3ForwardCPUCore();
       break;
     default:
       std::cerr << "No matching Core, abort" << std::endl;
