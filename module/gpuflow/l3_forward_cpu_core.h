@@ -25,10 +25,11 @@ struct IPv4LPMRoute {
 
 class L3ForwardCPUCore : public DataPlaneCore {
  public:
-  L3ForwardCPUCore();
+  L3ForwardCPUCore(std::vector<ether_addr> *mac_addresses_ptr);
   void LCoreFunctions() override;
 
  private:
+  std::vector<ether_addr> *mac_addresses_ptr;
   unsigned const int MAX_LPM_IPV4_RULES = 1024;
   route::IPv4LPMRoute ipv4_lpm_route_array[5];
   void CreateIPv4LPMRouteArray();

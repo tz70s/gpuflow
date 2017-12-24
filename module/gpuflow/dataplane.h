@@ -13,6 +13,7 @@
 #include <rte_config.h>
 #include <rte_eal.h>
 #include "dataplane_core.h"
+#include <vector>
 
 namespace gpuflow {
 
@@ -20,6 +21,7 @@ class DataPlane {
  public:
   DataPlane(int argc, char *argv[], unsigned int num_of_cores = 4);
   void ServeProcessingLoop(int);
+  std::vector<ether_addr> mac_addresses;
 
  private:
   unsigned int num_of_cores;

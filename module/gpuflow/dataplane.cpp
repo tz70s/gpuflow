@@ -40,6 +40,9 @@ DataPlane::DataPlane(int argc, char *argv[], unsigned int num_of_cores) :
       std::cerr << "Error occurred on initialized ports, abort" << std::endl;
       exit(1);
     }
+    struct ether_addr ether_address;
+    rte_eth_macaddr_get((uint8_t) eth_dev_id, &ether_address);
+    mac_addresses.push_back(ether_address);
   }
 }
 
@@ -64,7 +67,7 @@ void DataPlane::InitializePortConf() {
   // 5. CRC stripped by hardware.
   port_conf.rxmode.split_hdr_size = 0;
   port_conf.rxmode.header_split = 0;
-  port_conf.rxmode.hw_ip_checksum = 1;
+  port_conf.rxmode.hw_ip_checksum = 0;
   port_conf.rxmode.hw_vlan_filter = 0;
   port_conf.rxmode.hw_vlan_strip = 0;
   port_conf.rxmode.hw_vlan_extend = 0;
@@ -133,7 +136,7 @@ void DataPlane::ServeProcessingLoop(int DataPlaneCore_t) {
       data_plane_core = new BasicForwardCore(pkt_mbuf_pool);
       break;
     case L3ForwardCPUCore_t:
-      data_plane_core = new L3ForwardCPUCore();
+      data_plane_core = new L3ForwardCPUCore(&mac_addresses);
       break;
     default:
       std::cerr << "No matching Core, abort" << std::endl;
