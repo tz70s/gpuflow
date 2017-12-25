@@ -21,6 +21,7 @@ class DataPlane {
  public:
   DataPlane(int argc, char *argv[], unsigned int num_of_cores = 4);
   void ServeProcessingLoop(int);
+  int num_of_eth_devs;
   std::vector<ether_addr> mac_addresses;
 
  private:

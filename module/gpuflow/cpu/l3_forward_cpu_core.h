@@ -16,7 +16,7 @@ namespace gpuflow {
 
 class L3ForwardCPUCore : public DataPlaneCore {
  public:
-  explicit L3ForwardCPUCore(std::vector<ether_addr> *mac_addresses_ptr);
+  explicit L3ForwardCPUCore(int num_of_eth_devs, std::vector<ether_addr> *mac_addresses_ptr);
   void LCoreFunctions() override;
 
  private:

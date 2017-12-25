@@ -20,9 +20,12 @@ DataPlane::DataPlane(int argc, char *argv[], unsigned int num_of_cores) :
     rte_exit(EXIT_FAILURE, "ERROR with EAL initialization\n");
   }
   // Find binding eth devs
-  int num_of_eth_devs = rte_eth_dev_count();
+  num_of_eth_devs = rte_eth_dev_count();
   if (num_of_eth_devs <= 0) {
     std::cerr << "Didn't find any eth devices, abort" << std::endl;
+    exit(1);
+  } else if ((num_of_eth_devs % 2) != 0) {
+    std::cerr << "The number of eth devices should be even" << std::endl;
     exit(1);
   }
   // Create and initialize memory buffer pool
@@ -126,16 +129,16 @@ void DataPlane::ServeProcessingLoop(int DataPlaneCore_t) {
   // Match Core type
   switch (DataPlaneCore_t) {
     case SayHelloCore_t:
-      data_plane_core = new SayHelloCore();
+      data_plane_core = new SayHelloCore(num_of_eth_devs);
       break;
     case DumpPacketCore_t:
-      data_plane_core = new DumpPacketCore();
+      data_plane_core = new DumpPacketCore(num_of_eth_devs);
       break;
     case BasicForwardCore_t:
-      data_plane_core = new BasicForwardCore();
+      data_plane_core = new BasicForwardCore(num_of_eth_devs);
       break;
     case L3ForwardCPUCore_t:
-      data_plane_core = new L3ForwardCPUCore(&mac_addresses);
+      data_plane_core = new L3ForwardCPUCore(num_of_eth_devs, &mac_addresses);
       break;
     default:
       std::cerr << "No matching Core, abort" << std::endl;

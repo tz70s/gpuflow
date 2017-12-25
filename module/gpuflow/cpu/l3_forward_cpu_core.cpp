@@ -10,7 +10,8 @@
 
 namespace gpuflow {
 
-L3ForwardCPUCore::L3ForwardCPUCore(std::vector<ether_addr> *mac_addresses_ptr) : mac_addresses_ptr(mac_addresses_ptr) {
+L3ForwardCPUCore::L3ForwardCPUCore(int num_of_eth_devs, std::vector<ether_addr> *mac_addresses_ptr)
+        : DataPlaneCore(num_of_eth_devs), mac_addresses_ptr(mac_addresses_ptr) {
   // Initialize LPM
   // Do nothing, currently.
 }
@@ -68,7 +69,7 @@ void L3ForwardCPUCore::SimpleLPMForward(rte_mbuf *mbuf, unsigned int port_id, in
     if (ether_header->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP)) {
       // Send the packet to all other ports.
       // FIXME: Hardcoded port nums
-      for (unsigned int predicates = 0; predicates < 4; ++predicates) {
+      for (unsigned int predicates = 0; predicates < num_of_eth_devs; ++predicates) {
         if (predicates == port_id) {
           // Don't send to self, continue
         } else {

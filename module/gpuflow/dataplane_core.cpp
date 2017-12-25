@@ -69,15 +69,17 @@ void BasicForwardCore::LCoreFunctions() {
     ret = rte_eal_remote_launch([](void *arg) -> int {
       unsigned int self_lcore_id = rte_lcore_id();
       unsigned int port_id = (self_lcore_id > 0) ? self_lcore_id -1 : self_lcore_id;
+      auto *self = (BasicForwardCore *) arg;
       while(true) {
         struct rte_mbuf *pkts_burst[32];
         // Receive
         const unsigned int nb_rx = rte_eth_rx_burst(port_id, 0, pkts_burst, 32);
         for (unsigned int idx = 0; idx < nb_rx; ++idx) {
           struct rte_mbuf *mbuf = pkts_burst[idx];
-          unsigned int send = rte_eth_tx_burst(port_id ^ 3, 0, &mbuf, 1);
+          unsigned int send = rte_eth_tx_burst(port_id ^ (self->num_of_eth_devs - 1), 0, &mbuf, 1);
           if (send > 0) {
-            std::cout << "Transfer a packet! From dtap" << port_id << " to dtap" << (port_id ^ 3) << std::endl;
+            std::cout << "Transfer a packet! From dtap" << port_id << " to dtap" << (port_id ^ (self->num_of_eth_devs - 1))
+                      << std::endl;
           } else {
             // clean up
             rte_pktmbuf_free(mbuf);

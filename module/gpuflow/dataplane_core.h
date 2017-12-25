@@ -23,6 +23,8 @@ enum {
 
 class DataPlaneCore {
  public:
+  DataPlaneCore(int num_of_eth_devs) : num_of_eth_devs(num_of_eth_devs) {}
+  int num_of_eth_devs;
   virtual void LCoreFunctions() = 0;
 
   virtual ~DataPlaneCore() = default;
@@ -30,19 +32,20 @@ class DataPlaneCore {
 
 class SayHelloCore : public DataPlaneCore {
  public:
+  SayHelloCore(int num_of_eth_devs) : DataPlaneCore(num_of_eth_devs) {}
   void LCoreFunctions() override;
 };
 
 class DumpPacketCore : public DataPlaneCore {
  public:
-  DumpPacketCore() = default;
+  DumpPacketCore(int num_of_eth_devs) : DataPlaneCore(num_of_eth_devs) {}
 
   void LCoreFunctions() override;
 };
 
 class BasicForwardCore : public DataPlaneCore {
  public:
-  BasicForwardCore() = default;
+  BasicForwardCore(int num_of_eth_devs) : DataPlaneCore(num_of_eth_devs) {}
   void LCoreFunctions() override;
 };
 
