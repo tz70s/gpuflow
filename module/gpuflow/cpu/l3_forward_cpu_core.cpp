@@ -6,8 +6,7 @@
 
 #include <rte_ethdev.h>
 #include <iostream>
-#include <rte_arp.h>
-#include "l3_forward_cpu_core.h"
+#include "l3_forward_gpu_core.h"
 
 namespace gpuflow {
 

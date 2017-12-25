@@ -7,8 +7,7 @@
 #include "dataplane.h"
 
 #include <iostream>
-#include <rte_mempool.h>
-#include "l3_forward_cpu_core.h"
+#include "gpuflow/cpu/l3_forward_gpu_core.h"
 
 namespace gpuflow {
 
@@ -130,10 +129,10 @@ void DataPlane::ServeProcessingLoop(int DataPlaneCore_t) {
       data_plane_core = new SayHelloCore();
       break;
     case DumpPacketCore_t:
-      data_plane_core = new DumpPacketCore(pkt_mbuf_pool);
+      data_plane_core = new DumpPacketCore();
       break;
     case BasicForwardCore_t:
-      data_plane_core = new BasicForwardCore(pkt_mbuf_pool);
+      data_plane_core = new BasicForwardCore();
       break;
     case L3ForwardCPUCore_t:
       data_plane_core = new L3ForwardCPUCore(&mac_addresses);
@@ -143,6 +142,7 @@ void DataPlane::ServeProcessingLoop(int DataPlaneCore_t) {
       exit(1);
   }
   data_plane_core->LCoreFunctions();
+  delete(data_plane_core);
 }
 
 } // namespace gpuflow

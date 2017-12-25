@@ -1,6 +1,12 @@
 file(GLOB_RECURSE CORE_SOURCES "*.cpp")
 file(GLOB_RECURSE CORE_HEADERS "*.h")
 
+file(GLOB_RECURSE CORE_CPU_SOURCES "cpu/*.cpp")
+file(GLOB_RECURSE CORE_CPU_HEADERS "cpu/*.h")
+
+file(GLOB_RECURSE CORE_GPU_SOURCES "gpu/*.cpp")
+file(GLOB_RECURSE CORE_GPU_HEADERS "gpu/*.h")
+
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
@@ -47,6 +53,9 @@ SET(ALL_LIBS
         pthread dl rt
         -Wl,--no-whole-archive)
 
-add_library(GPU_FLOW_LIBS ${CORE_SOURCES} ${CORE_HEADERS})
+add_library(GPU_FLOW_LIBS
+        ${CORE_SOURCES} ${CORE_HEADERS}
+        ${CORE_CPU_SOURCES} ${CORE_CPU_HEADERS}
+        ${CORE_GPU_SOURCES} ${CORE_GPU_HEADERS})
 
 target_link_libraries(GPU_FLOW_LIBS ${ALL_LIBS})

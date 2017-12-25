@@ -4,19 +4,19 @@
  * We use MIT license for this project, checkout LICENSE file in the root of source tree.
  */
 
-#ifndef _LPMV4_CPU_CORE_H_
-#define _LPMV4_CPU_CORE_H_
+#ifndef _LPM_GPU_CORE_H_
+#define _LPM_GPU_CORE_H_
 
 #include <rte_lpm.h>
 #include <rte_ip.h>
-#include "dataplane_core.h"
-#include "dataplane_lpm.h"
+#include "gpuflow/dataplane_core.h"
+#include "gpuflow/dataplane_lpm.h"
 
 namespace gpuflow {
 
-class L3ForwardCPUCore : public DataPlaneCore {
+class L3ForwardGPUCore : public DataPlaneCore {
  public:
-  explicit L3ForwardCPUCore(std::vector<ether_addr> *mac_addresses_ptr);
+  explicit L3ForwardGPUCore(std::vector<ether_addr> *mac_addresses_ptr);
   void LCoreFunctions() override;
 
  private:
@@ -29,4 +29,4 @@ class L3ForwardCPUCore : public DataPlaneCore {
 
 } // namespace gpuflow
 
-#endif // _LPMV4_CPU_CORE_H_
+#endif // _LPM_GPU_CORE_H_

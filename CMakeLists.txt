@@ -19,6 +19,7 @@ endif()
 include_directories(${VENDOR_DPDK_DIR}/x86_64-native-linuxapp-gcc/include)
 link_directories(${VENDOR_DPDK_DIR}/x86_64-native-linuxapp-gcc/lib)
 
+include_directories(module)
 add_subdirectory(module/gpuflow)
 
 add_executable(GPUFlow module/main.cpp)

@@ -23,7 +23,9 @@ enum {
 
 class DataPlaneCore {
  public:
-virtual void LCoreFunctions() = 0;
+  virtual void LCoreFunctions() = 0;
+
+  virtual ~DataPlaneCore() = default;
 };
 
 class SayHelloCore : public DataPlaneCore {
@@ -33,24 +35,15 @@ class SayHelloCore : public DataPlaneCore {
 
 class DumpPacketCore : public DataPlaneCore {
  public:
-  explicit DumpPacketCore(rte_mempool *pkt_mbuf_pool)
-          : pkt_mbuf_pool(pkt_mbuf_pool) {};
+  DumpPacketCore() = default;
 
   void LCoreFunctions() override;
-
- private:
-  // FIXME: Thread safe?
-  rte_mempool *pkt_mbuf_pool;
 };
 
 class BasicForwardCore : public DataPlaneCore {
  public:
-  BasicForwardCore(rte_mempool *pkt_mbuf_pool) : pkt_mbuf_pool(pkt_mbuf_pool) {};
-
+  BasicForwardCore() = default;
   void LCoreFunctions() override;
-
- private:
-  rte_mempool *pkt_mbuf_pool;
 };
 
 } // namespace gpuflow
