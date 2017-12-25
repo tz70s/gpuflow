@@ -4,8 +4,8 @@
  * We use MIT license for this project, checkout LICENSE file in the root of source tree.
  */
 
-#ifndef _LPM_CPU_CORE_H_
-#define _LPM_CPU_CORE_H_
+#ifndef _L3_FORWARD_CPU_CORE_H_
+#define _L3_FORWARD_CPU_CORE_H_
 
 #include <rte_lpm.h>
 #include <rte_ip.h>
@@ -29,4 +29,4 @@ class L3ForwardCPUCore : public DataPlaneCore {
 
 } // namespace gpuflow
 
-#endif // _LPM_CPU_CORE_H_
+#endif // _L3_FORWARD_CPU_CORE_H_

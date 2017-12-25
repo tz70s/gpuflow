@@ -4,8 +4,8 @@
  * We use MIT license for this project, checkout LICENSE file in the root of source tree.
  */
 
-#ifndef _DATAPLANE_Core_H_
-#define _DATAPLANE_Core_H_
+#ifndef _DATAPLANE_CORE_H_
+#define _DATAPLANE_CORE_H_
 
 #include <rte_launch.h>
 #include <vector>
@@ -48,4 +48,4 @@ class BasicForwardCore : public DataPlaneCore {
 
 } // namespace gpuflow
 
-#endif // _DATAPLANE_Core_H_
+#endif // _DATAPLANE_CORE_H_
