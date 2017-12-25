@@ -9,6 +9,7 @@
 
 #include <rte_lpm.h>
 #include <rte_ip.h>
+#include <rte_ether.h>
 #include "gpuflow/dataplane_core.h"
 #include "gpuflow/dataplane_lpm.h"
 

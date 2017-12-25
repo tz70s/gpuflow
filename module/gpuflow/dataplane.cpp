@@ -7,7 +7,7 @@
 #include "dataplane.h"
 
 #include <iostream>
-#include "gpuflow/cpu/l3_forward_gpu_core.h"
+#include "gpuflow/cpu/l3_forward_cpu_core.h"
 
 namespace gpuflow {
 
