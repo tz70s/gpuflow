@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include "cpu/l3_forward_cpu_core.h"
+#include "gpu/l3_forward_gpu_core.h"
 
 namespace gpuflow {
 
@@ -141,6 +142,9 @@ void DataPlane::ServeProcessingLoop(int DataPlaneCore_t) {
     case L3ForwardCPUCore_t:
       data_plane_core = new L3ForwardCPUCore(num_of_eth_devs, &mac_addresses);
       break;
+		case L3ForwardGPUCore_t:
+			data_plane_core = new L3ForwardGPUCore(num_of_eth_devs, &mac_addresses);
+			break;
     default:
       std::cerr << "No matching Core, abort" << std::endl;
       exit(1);

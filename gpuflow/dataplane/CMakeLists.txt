@@ -7,6 +7,14 @@ file(GLOB_RECURSE CORE_CPU_HEADERS "cpu/*.h")
 file(GLOB_RECURSE CORE_GPU_SOURCES "gpu/*.cpp")
 file(GLOB_RECURSE CORE_GPU_HEADERS "gpu/*.h")
 
+# CU files
+file(GLOB_RECURSE CORE_GPU_CUDA_SOURCES "gpu/cuda/*.cu")
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -O3 -gencode arch=compute_30,code=sm_30; -std=c++11)
+
+# CUDA_COMPILE(CU_OBJ ${CORE_GPU_CUDA_SOURCES})
+
+cuda_add_library(CU_OBJ ${CORE_GPU_CUDA_SOURCES})
+
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
@@ -50,12 +58,13 @@ SET(DPDK_LIBS
 SET(ALL_LIBS
         -Wl,--whole-archive
         -Wl,--start-group ${DPDK_LIBS} numa -Wl,--end-group
-        pthread dl rt
+        pthread dl rt ${CUDA_LIBRARIES}
         -Wl,--no-whole-archive)
 
-add_library(GPU_FLOW_LIBS
+cuda_add_library(GPU_FLOW_LIBS
         ${CORE_SOURCES} ${CORE_HEADERS}
         ${CORE_CPU_SOURCES} ${CORE_CPU_HEADERS}
-        ${CORE_GPU_SOURCES} ${CORE_GPU_HEADERS})
+        ${CORE_GPU_SOURCES} ${CORE_GPU_HEADERS} ${CU_OBJ})
 
 target_link_libraries(GPU_FLOW_LIBS ${ALL_LIBS})
+

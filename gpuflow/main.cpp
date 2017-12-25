@@ -6,10 +6,11 @@
 
 #include "dataplane/dataplane_core.h"
 #include "dataplane/dataplane.h"
+#include "dataplane/gpu/l3_forward_gpu_core.h"
 
 int main(int argc, char *argv[]) {
   // Create a gpu accelerated data plane
   gpuflow::DataPlane data_plane(argc, argv);
-  data_plane.ServeProcessingLoop(gpuflow::L3ForwardCPUCore_t);
+  data_plane.ServeProcessingLoop(gpuflow::L3ForwardGPUCore_t);
   return 0;
 }
