@@ -9,6 +9,8 @@ find_package(numa REQUIRED)
 SET(CMAKE_CXX_FLAGS "-fno-stack-protector -Wall -Wextra -Wno-unused-parameter -g -O3 -std=gnu++11 -march=native -msse4.2")
 SET(CMAKE_C_FLAGS "-fno-stack-protector -Wall -Wextra -Wno-unused-parameter -g -O3 -std=gnu11 -march=native -msse4.2")
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 # For cross-platform compilation
 if(EXISTS ${CMAKE_SOURCE_DIR}/vendor/dpdk-08)
   set(VENDOR_DPDK_DIR ${CMAKE_SOURCE_DIR}/vendor/dpdk-08)
@@ -19,9 +21,9 @@ endif()
 include_directories(${VENDOR_DPDK_DIR}/x86_64-native-linuxapp-gcc/include)
 link_directories(${VENDOR_DPDK_DIR}/x86_64-native-linuxapp-gcc/lib)
 
-include_directories(module)
-add_subdirectory(module/gpuflow)
+include_directories(gpuflow)
+add_subdirectory(gpuflow/dataplane)
 
-add_executable(GPUFlow module/main.cpp)
+add_executable(GPUFlow gpuflow/main.cpp)
 
 target_link_libraries(GPUFlow GPU_FLOW_LIBS)

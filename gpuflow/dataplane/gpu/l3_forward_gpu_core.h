@@ -10,8 +10,8 @@
 #include <rte_lpm.h>
 #include <rte_ip.h>
 #include <rte_ether.h>
-#include "gpuflow/dataplane_core.h"
-#include "gpuflow/dataplane_lpm.h"
+#include "dataplane/dataplane_core.h"
+#include "dataplane/dataplane_lpm.h"
 
 namespace gpuflow {
 

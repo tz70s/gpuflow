@@ -9,14 +9,14 @@
 
 #include <rte_lpm.h>
 #include <rte_ip.h>
-#include "gpuflow/dataplane_core.h"
-#include "gpuflow/dataplane_lpm.h"
+#include "dataplane/dataplane_core.h"
+#include "dataplane/dataplane_lpm.h"
 
 namespace gpuflow {
 
 class L3ForwardCPUCore : public DataPlaneCore {
  public:
-  explicit L3ForwardCPUCore(int num_of_eth_devs, std::vector<ether_addr> *mac_addresses_ptr);
+  explicit L3ForwardCPUCore(unsigned int num_of_eth_devs, std::vector<ether_addr> *mac_addresses_ptr);
   void LCoreFunctions() override;
 
  private:

@@ -8,6 +8,7 @@
 #define _DATAPLANE_LPM_H_
 
 #include <cstdint>
+#include <rte_ip.h>
 
 namespace gpuflow {
 namespace route {

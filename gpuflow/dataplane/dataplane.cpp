@@ -7,7 +7,7 @@
 #include "dataplane.h"
 
 #include <iostream>
-#include "gpuflow/cpu/l3_forward_cpu_core.h"
+#include "cpu/l3_forward_cpu_core.h"
 
 namespace gpuflow {
 
@@ -20,14 +20,15 @@ DataPlane::DataPlane(int argc, char *argv[], unsigned int num_of_cores) :
     rte_exit(EXIT_FAILURE, "ERROR with EAL initialization\n");
   }
   // Find binding eth devs
-  num_of_eth_devs = rte_eth_dev_count();
-  if (num_of_eth_devs <= 0) {
+  int _num_of_eth_devs = rte_eth_dev_count();
+  if (_num_of_eth_devs <= 0) {
     std::cerr << "Didn't find any eth devices, abort" << std::endl;
     exit(1);
-  } else if ((num_of_eth_devs % 2) != 0) {
+  } else if ((_num_of_eth_devs % 2) != 0) {
     std::cerr << "The number of eth devices should be even" << std::endl;
     exit(1);
   }
+  num_of_eth_devs = (unsigned int) _num_of_eth_devs;
   // Create and initialize memory buffer pool
   if (CreateMbufPool() < 0) {
     std::cerr << "Error occurred on creating memory buffer pool of dpdk, abort" << std::endl;
@@ -36,7 +37,7 @@ DataPlane::DataPlane(int argc, char *argv[], unsigned int num_of_cores) :
 
   InitializePortConf();
 
-  for (int eth_dev_id = 0; eth_dev_id < num_of_eth_devs; ++eth_dev_id) {
+  for (unsigned int eth_dev_id = 0; eth_dev_id < num_of_eth_devs; ++eth_dev_id) {
     // Initialize ports
     if (InitializePorts((uint8_t) eth_dev_id) < 0) {
       std::cerr << "Error occurred on initialized ports, abort" << std::endl;

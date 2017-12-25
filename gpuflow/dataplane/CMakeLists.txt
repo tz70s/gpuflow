@@ -1,4 +1,4 @@
-file(GLOB_RECURSE CORE_SOURCES "*.cpp")
+file(GLOB_RECURSE CORE_SOURCES "dataplane*.cpp")
 file(GLOB_RECURSE CORE_HEADERS "*.h")
 
 file(GLOB_RECURSE CORE_CPU_SOURCES "cpu/*.cpp")

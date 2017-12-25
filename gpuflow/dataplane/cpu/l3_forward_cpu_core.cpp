@@ -10,7 +10,7 @@
 
 namespace gpuflow {
 
-L3ForwardCPUCore::L3ForwardCPUCore(int num_of_eth_devs, std::vector<ether_addr> *mac_addresses_ptr)
+L3ForwardCPUCore::L3ForwardCPUCore(unsigned int num_of_eth_devs, std::vector<ether_addr> *mac_addresses_ptr)
         : DataPlaneCore(num_of_eth_devs), mac_addresses_ptr(mac_addresses_ptr) {
   // Initialize LPM
   // Do nothing, currently.
@@ -24,8 +24,7 @@ void L3ForwardCPUCore::SimpleLPMForward(rte_mbuf *mbuf, unsigned int port_id, in
   if (RTE_ETH_IS_IPV4_HDR(mbuf->packet_type)) {
     struct ipv4_hdr *ipv4_header = rte_pktmbuf_mtod_offset(mbuf, ipv4_hdr *, sizeof(ether_hdr));
     uint16_t dst_port = data_plane_lpm_v4.RoutingTableLookUp(ipv4_header, (uint16_t) port_id, socket_id);
-    // TODO: Make a more bounded check.
-    if (dst_port >= RTE_MAX_ETHPORTS) {
+    if (dst_port >= num_of_eth_devs) {
       dst_port = (uint16_t) port_id;
     }
     // Copy the ethernet address a.k.a mac address to the next hop packet.
@@ -45,8 +44,7 @@ void L3ForwardCPUCore::SimpleLPMForward(rte_mbuf *mbuf, unsigned int port_id, in
   } else if (RTE_ETH_IS_IPV6_HDR(mbuf->packet_type)) {
     struct ipv6_hdr *ipv6_header = rte_pktmbuf_mtod_offset(mbuf, ipv6_hdr *, sizeof(ether_hdr));
     uint16_t dst_port = data_plane_lpm_v6.RoutingTableLookUp(ipv6_header, (uint16_t) port_id, socket_id);
-    // TODO: Make a more bounded check.
-    if (dst_port >= RTE_MAX_ETHPORTS) {
+    if (dst_port >= num_of_eth_devs) {
       dst_port = (uint16_t) port_id;
     }
     // Copy the ethernet address a.k.a mac address to the next hop packet.
@@ -68,7 +66,6 @@ void L3ForwardCPUCore::SimpleLPMForward(rte_mbuf *mbuf, unsigned int port_id, in
     ether_header = rte_pktmbuf_mtod(mbuf, ether_hdr *);
     if (ether_header->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP)) {
       // Send the packet to all other ports.
-      // FIXME: Hardcoded port nums
       for (unsigned int predicates = 0; predicates < num_of_eth_devs; ++predicates) {
         if (predicates == port_id) {
           // Don't send to self, continue

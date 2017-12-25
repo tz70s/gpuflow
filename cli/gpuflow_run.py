@@ -16,7 +16,7 @@ class GPUFlowRun:
 
     def run(self):
         check_sudo()
-        gpuflow_bin = self.path + '/build/GPUFlow'
+        gpuflow_bin = self.path + '/build/bin/GPUFlow'
         if os.path.isfile(gpuflow_bin):
             call([gpuflow_bin, '-l', '0-3', '--vdev=net_tap0', '--vdev=net_tap1', '--vdev=net_tap2', 
                 '--vdev=net_tap3', '--master-lcore', '0'])
