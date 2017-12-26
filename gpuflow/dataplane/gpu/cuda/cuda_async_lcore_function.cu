@@ -13,12 +13,26 @@
 #include <iostream>
 #include <rte_ip.h>
 #include "cuda_async_lcore_function.h"
+#include "cuda_lpm_factory.h"
 
 namespace gpuflow {
 namespace cu {
 
-__device__ void IPv4Processing(struct ipv4_hdr *ipv4_header, struct ether_hdr *ether_header) {
-  printf("Dealing with ipv4 header!\n");
+__device__ void IPv4Processing(struct ipv4_hdr *ipv4_header, struct ether_hdr *ether_header, IPv4RuleEntry *lpm_table_ptr) {
+
+  // Transferring endian, 32-bit
+  uint32_t ipv4_addr_le = ((ipv4_header->dst_addr >> 24) & 0xff) |
+          ((ipv4_header->dst_addr << 8) & 0xff0000) |
+          ((ipv4_header->dst_addr >> 8) & 0xff00) |
+          ((ipv4_header->dst_addr << 24) & 0xff000000);
+
+  printf("IPv4 dst address : %d\n", ipv4_addr_le >> 16);
+  if ((lpm_table_ptr + (ipv4_addr_le >> 16)) != nullptr) {
+    IPv4RuleEntry *entry = (lpm_table_ptr + (ipv4_addr_le >> 16));
+    if (entry->valid_flag) {
+      printf("Get the next hop! %d\n", entry->next_hop);
+    }
+  }
 }
 
 __device__ void IPv6Processing(struct ipv6_hdr *ipv6_header, struct ether_hdr *ether_header) {
@@ -33,12 +47,13 @@ __global__ void PacketProcessing(uint8_t *dev_ptypes_burst,
                                  struct ipv4_hdr *dev_ipv4_hdr_burst,
                                  struct ipv6_hdr *dev_ipv6_hdr_burst,
                                  struct ether_hdr *dev_ether_hdrs_burst,
-                                 int nb_of_ip_hdrs) {
+                                 int nb_of_ip_hdrs,
+                                 IPv4RuleEntry *lpm_table_ptr) {
   int idx = threadIdx.x;
   if (idx < nb_of_ip_hdrs) {
     // Match up packet types.
     if(dev_ptypes_burst[idx] == IP_FAMILY::PTYPE_IPV4) {
-      IPv4Processing(&dev_ipv4_hdr_burst[idx], &dev_ether_hdrs_burst[idx]);
+      IPv4Processing(&dev_ipv4_hdr_burst[idx], &dev_ether_hdrs_burst[idx], lpm_table_ptr);
     } else if (dev_ptypes_burst[idx] == IP_FAMILY::PTYPE_IPV6) {
       IPv6Processing(&dev_ipv6_hdr_burst[idx], &dev_ether_hdrs_burst[idx]);
     } else {
@@ -47,14 +62,14 @@ __global__ void PacketProcessing(uint8_t *dev_ptypes_burst,
   }
 }
 
-inline void CudaMallocWithFailOver(void **predicate, size_t size, const char *predicate_type) {
+static inline void CudaMallocWithFailOver(void **predicate, size_t size, const char *predicate_type) {
   if (cudaMalloc(predicate, size) != cudaSuccess) {
     std::cerr << "Device memory allocation on " << predicate_type << " failed, abort." << std::endl;
     exit(1);
   }
 }
 
-inline void CudaASyncMemcpyWithFailOver(void *dst, const void *src, size_t size, cudaMemcpyKind kind,
+static inline void CudaASyncMemcpyWithFailOver(void *dst, const void *src, size_t size, cudaMemcpyKind kind,
                                        cudaStream_t stream, const char *operation_type) {
   if (cudaMemcpyAsync(dst, src, size, kind, stream) != cudaSuccess) {
     std::cerr << "Async Memory copy error on " << operation_type << std::endl;
@@ -72,7 +87,8 @@ inline int CudaASyncLCoreFunction::SetupCudaDevices(int nb_rx) {
   return 0;
 }
 
-int CudaASyncLCoreFunction::ProcessPacketsBatch(struct rte_mbuf **pkts_burst, int nb_rx) {
+int CudaASyncLCoreFunction::ProcessPacketsBatch(struct rte_mbuf **pkts_burst, int nb_rx,
+                                                IPv4RuleEntry *lpm_table_ptr) {
   // TODO: Reusable Malloc
   SetupCudaDevices(nb_rx);
   cudaStream_t cuda_stream;
@@ -142,7 +158,7 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(struct rte_mbuf **pkts_burst, in
           dev_ipv4_hdrs_burst,
           dev_ipv6_hdrs_burst,
           dev_ether_hdrs_burst,
-          nb_rx);
+          nb_rx, lpm_table_ptr);
 
   // TODO: After stream copy back, add a callback here, and fire tx transferring.
 

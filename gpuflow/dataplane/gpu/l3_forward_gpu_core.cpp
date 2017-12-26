@@ -34,7 +34,7 @@ void L3ForwardGPUCore::LCoreFunctions() {
           const unsigned int nb_rx = rte_eth_rx_burst(port_id, 0, pkts_burst, 32);
           // Call out cuda function
           if (nb_rx > 0) {
-            cuda_lcore_function.ProcessPacketsBatch(pkts_burst, nb_rx);
+            cuda_lcore_function.ProcessPacketsBatch(pkts_burst, nb_rx, self->data_plane_lpm_ipv4_gpu.IPv4TBL24);
           }
         }
       }

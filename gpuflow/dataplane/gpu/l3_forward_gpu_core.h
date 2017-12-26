@@ -10,6 +10,7 @@
 #include <rte_lpm.h>
 #include <rte_ip.h>
 #include <rte_ether.h>
+#include <dataplane/dataplane_lpm_gpu.h>
 #include "dataplane/dataplane_core.h"
 #include "dataplane/dataplane_lpm.h"
 
@@ -23,6 +24,7 @@ class L3ForwardGPUCore : public DataPlaneCore {
  private:
   unsigned int num_of_eth_devs;
   std::vector<ether_addr> *mac_addresses_ptr;
+  DataPlaneLPMIPv4GPU data_plane_lpm_ipv4_gpu;
 };
 
 } // namespace gpuflow
