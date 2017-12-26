@@ -9,7 +9,7 @@ file(GLOB_RECURSE CORE_GPU_HEADERS "gpu/*.h")
 
 # CU files
 file(GLOB_RECURSE CORE_GPU_CUDA_SOURCES "gpu/cuda/*.cu")
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -G -g -gencode arch=compute_61,code=sm_61; -std=c++11)
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -O3 -gencode arch=compute_61,code=sm_61; -std=c++11)
 
 cuda_add_library(CU_OBJ ${CORE_GPU_CUDA_SOURCES})
 

@@ -4,8 +4,8 @@
  * We use MIT license for this project, checkout LICENSE file in the root of source tree.
  */
 
-#ifndef _SYNC_LCORE_FUNCTION_CU_H_
-#define _SYNC_LCORE_FUNCTION_CU_H_
+#ifndef _ASYNC_LCORE_FUNCTION_CU_H_
+#define _ASYNC_LCORE_FUNCTION_CU_H_
 
 #include <vector>
 #include <rte_ethdev.h>
@@ -18,9 +18,9 @@ const uint8_t PTYPE_IPV4 = 0x12;
 const uint8_t PTYPE_IPV6 = 0x13;
 }
 
-class CudaSyncLCoreFunction {
+class CudaASyncLCoreFunction {
  public:
-  CudaSyncLCoreFunction(unsigned int num_of_eth_devs, std::vector<ether_addr> *mac_addresses_ptr)
+  CudaASyncLCoreFunction(unsigned int num_of_eth_devs, std::vector<ether_addr> *mac_addresses_ptr)
           : num_of_eth_devs(num_of_eth_devs), mac_addresses_ptr(mac_addresses_ptr) {}
 
   int SetupCudaDevices(int nb_rx);
@@ -38,4 +38,4 @@ class CudaSyncLCoreFunction {
 } // namespace cu
 } // namespace gpuflow
 
-#endif // _SYNC_LCORE_FUNCTION_CU_H_
+#endif // _ASYNC_LCORE_FUNCTION_CU_H_

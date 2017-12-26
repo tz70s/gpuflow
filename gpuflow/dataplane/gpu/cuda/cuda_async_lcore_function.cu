@@ -12,7 +12,7 @@
 #include <device_launch_parameters.h>
 #include <iostream>
 #include <rte_ip.h>
-#include "cuda_sync_lcore_function.h"
+#include "cuda_async_lcore_function.h"
 
 namespace gpuflow {
 namespace cu {
@@ -54,15 +54,15 @@ inline void CudaMallocWithFailOver(void **predicate, size_t size, const char *pr
   }
 }
 
-inline void CudaSyncMemcpyWithFailOver(void *dst, const void *src, size_t size, cudaMemcpyKind kind,
-                                       const char *operation_type) {
-  if (cudaMemcpy(dst, src, size, kind) != cudaSuccess) {
-    std::cerr << "Memory copy error on cuda mem copy of " << operation_type << std::endl;
+inline void CudaASyncMemcpyWithFailOver(void *dst, const void *src, size_t size, cudaMemcpyKind kind,
+                                       cudaStream_t stream, const char *operation_type) {
+  if (cudaMemcpyAsync(dst, src, size, kind, stream) != cudaSuccess) {
+    std::cerr << "Async Memory copy error on " << operation_type << std::endl;
     exit(1);
   }
 }
 
-inline int CudaSyncLCoreFunction::SetupCudaDevices(int nb_rx) {
+inline int CudaASyncLCoreFunction::SetupCudaDevices(int nb_rx) {
 
   CudaMallocWithFailOver((void **) &dev_ptypes_burst, nb_rx * sizeof(uint8_t), "dev_ptypes_burst");
   CudaMallocWithFailOver((void **) &dev_ipv4_hdrs_burst, nb_rx * sizeof(struct ipv4_hdr), "dev_ipv4_hdrs_burst");
@@ -72,51 +72,61 @@ inline int CudaSyncLCoreFunction::SetupCudaDevices(int nb_rx) {
   return 0;
 }
 
-int CudaSyncLCoreFunction::ProcessPacketsBatch(struct rte_mbuf **pkts_burst, int nb_rx) {
+int CudaASyncLCoreFunction::ProcessPacketsBatch(struct rte_mbuf **pkts_burst, int nb_rx) {
+  // TODO: Reusable Malloc
   SetupCudaDevices(nb_rx);
+  cudaStream_t cuda_stream;
+  cudaStreamCreate(&cuda_stream);
   for (int i = 0; i < nb_rx; ++i) {
     if (RTE_ETH_IS_IPV4_HDR(pkts_burst[i]->packet_type)) {
+
       // Ipv4 header, copy ipv4
-      CudaSyncMemcpyWithFailOver(&dev_ipv4_hdrs_burst[i],
+      CudaASyncMemcpyWithFailOver(&dev_ipv4_hdrs_burst[i],
                                  rte_pktmbuf_mtod_offset(pkts_burst[i], struct ipv4_hdr *, sizeof(struct ether_hdr)),
                                  sizeof(struct ipv4_hdr),
                                  cudaMemcpyHostToDevice,
+                                 cuda_stream,
                                  "ipv4_header_memory_copy");
 
       // Add type into type burst.
-      CudaSyncMemcpyWithFailOver(&dev_ptypes_burst[i],
+      CudaASyncMemcpyWithFailOver(&dev_ptypes_burst[i],
                                  &IP_FAMILY::PTYPE_IPV4,
                                  sizeof(uint8_t),
                                  cudaMemcpyHostToDevice,
+                                 cuda_stream,
                                  "ipv4_ptype_memory_copy");
 
       // Copy ether header
-      CudaSyncMemcpyWithFailOver(&dev_ether_hdrs_burst[i],
+      CudaASyncMemcpyWithFailOver(&dev_ether_hdrs_burst[i],
                                  rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *),
                                  sizeof(struct ether_hdr),
                                  cudaMemcpyHostToDevice,
+                                 cuda_stream,
                                  "ipv4_ether_header_memory_copy");
 
     } else if (RTE_ETH_IS_IPV6_HDR(pkts_burst[i]->packet_type)) {
       // Ipv6 header, copy ipv6 type
-      CudaSyncMemcpyWithFailOver(&dev_ipv6_hdrs_burst[i],
+      CudaASyncMemcpyWithFailOver(&dev_ipv6_hdrs_burst[i],
                                  rte_pktmbuf_mtod_offset(pkts_burst[i], struct ipv6_hdr *, sizeof(struct ether_hdr)),
                                  sizeof(struct ipv6_hdr),
                                  cudaMemcpyHostToDevice,
+                                 cuda_stream,
                                  "ipv6_header_memory_copy");
 
       // Add type into type burst.
-      CudaSyncMemcpyWithFailOver(&dev_ptypes_burst[i],
+      CudaASyncMemcpyWithFailOver(&dev_ptypes_burst[i],
                                  &IP_FAMILY::PTYPE_IPV6,
                                  sizeof(uint8_t),
                                  cudaMemcpyHostToDevice,
+                                 cuda_stream,
                                  "ipv6_ptype_memory_copy");
 
       // Copy ether header
-      CudaSyncMemcpyWithFailOver(&dev_ether_hdrs_burst[i],
+      CudaASyncMemcpyWithFailOver(&dev_ether_hdrs_burst[i],
                                  rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *),
                                  sizeof(struct ether_hdr),
                                  cudaMemcpyHostToDevice,
+                                 cuda_stream,
                                  "ipv6_ether_header_memory_copy");
     } else {
       struct ether_hdr *ether_header = rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *);
@@ -128,12 +138,15 @@ int CudaSyncLCoreFunction::ProcessPacketsBatch(struct rte_mbuf **pkts_burst, int
     }
   }
 
-  PacketProcessing<<<1, nb_rx>>>(dev_ptypes_burst,
+  PacketProcessing<<<1, nb_rx, 0, cuda_stream>>>(dev_ptypes_burst,
           dev_ipv4_hdrs_burst,
           dev_ipv6_hdrs_burst,
           dev_ether_hdrs_burst,
           nb_rx);
 
+  // TODO: After stream copy back, add a callback here, and fire tx transferring.
+
+  // FIXME: Unsafe clean up in the async context.
   cudaFree(dev_ptypes_burst);
   cudaFree(dev_ether_hdrs_burst);
   cudaFree(dev_ipv4_hdrs_burst);

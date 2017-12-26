@@ -7,7 +7,7 @@
 #include <rte_ethdev.h>
 #include <iostream>
 #include "l3_forward_gpu_core.h"
-#include "dataplane/gpu/cuda/cuda_sync_lcore_function.h"
+#include "dataplane/gpu/cuda/cuda_async_lcore_function.h"
 
 namespace gpuflow {
 
@@ -26,7 +26,7 @@ void L3ForwardGPUCore::LCoreFunctions() {
       unsigned int port_id = (self_lcore_id > 0) ? self_lcore_id -1 : self_lcore_id;
       auto *self = (L3ForwardGPUCore *)arg;
       if (port_id == 0) {
-        cu::CudaSyncLCoreFunction cuda_lcore_function(self->num_of_eth_devs, self->mac_addresses_ptr);
+        cu::CudaASyncLCoreFunction cuda_lcore_function(self->num_of_eth_devs, self->mac_addresses_ptr);
 
         while (true) {
           struct rte_mbuf *pkts_burst[32];
@@ -38,6 +38,7 @@ void L3ForwardGPUCore::LCoreFunctions() {
           }
         }
       }
+      return 0;
     }, (void *)this, lcore_id);
 
     if (ret < 0) {
