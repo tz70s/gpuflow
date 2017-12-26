@@ -9,6 +9,8 @@
 
 #include <vector>
 #include <rte_ethdev.h>
+#include "cuda_lpm_factory.h"
+
 namespace gpuflow {
 namespace cu {
 
@@ -24,7 +26,7 @@ class CudaASyncLCoreFunction {
           : num_of_eth_devs(num_of_eth_devs), mac_addresses_ptr(mac_addresses_ptr) {}
 
   int SetupCudaDevices(int nb_rx);
-  int ProcessPacketsBatch(struct rte_mbuf **pkts_burst, int nb_rx);
+  int ProcessPacketsBatch(struct rte_mbuf **pkts_burst, int nb_rx, IPv4RuleEntry *lpm_table_ptr);
  private:
   unsigned int num_of_eth_devs;
   std::vector<ether_addr> *mac_addresses_ptr;

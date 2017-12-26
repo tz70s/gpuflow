@@ -6,6 +6,7 @@ file(GLOB_RECURSE CORE_CPU_HEADERS "cpu/*.h")
 
 file(GLOB_RECURSE CORE_GPU_SOURCES "gpu/*.cpp")
 file(GLOB_RECURSE CORE_GPU_HEADERS "gpu/*.h")
+file(GLOB_RECURSE CORE_GPU_CUDA_HEADERS "gpu/cuda/*.h")
 
 # CU files
 file(GLOB_RECURSE CORE_GPU_CUDA_SOURCES "gpu/cuda/*.cu")
