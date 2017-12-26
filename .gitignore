@@ -61,3 +61,4 @@ vendor/
 
 *.pyc
 *.egg-info/
+scp.sh

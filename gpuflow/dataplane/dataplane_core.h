@@ -19,6 +19,7 @@ enum {
   DumpPacketCore_t,
   BasicForwardCore_t,
   L3ForwardCPUCore_t,
+	L3ForwardGPUCore_t
 };
 
 class DataPlaneCore {

@@ -17,15 +17,12 @@ namespace gpuflow {
 
 class L3ForwardGPUCore : public DataPlaneCore {
  public:
-  explicit L3ForwardGPUCore(std::vector<ether_addr> *mac_addresses_ptr);
+  explicit L3ForwardGPUCore(unsigned int num_of_eth_devs, std::vector<ether_addr> *mac_addresses_ptr);
   void LCoreFunctions() override;
 
  private:
+  unsigned int num_of_eth_devs;
   std::vector<ether_addr> *mac_addresses_ptr;
-  DataPlaneLPMv4 data_plane_lpm_v4;
-  DataPlaneLPMv6 data_plane_lpm_v6;
-  void SimpleLPMForward(rte_mbuf *mbuf, unsigned int port_id, int socket_id);
-
 };
 
 } // namespace gpuflow
