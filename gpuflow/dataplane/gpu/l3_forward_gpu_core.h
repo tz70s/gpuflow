@@ -23,8 +23,6 @@ class L3ForwardGPUCore : public DataPlaneCore {
  private:
   unsigned int num_of_eth_devs;
   std::vector<ether_addr> *mac_addresses_ptr;
-  DataPlaneLPMv4 data_plane_lpm_v4;
-  DataPlaneLPMv6 data_plane_lpm_v6;
 };
 
 } // namespace gpuflow
