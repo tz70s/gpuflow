@@ -57,13 +57,6 @@ int IPv4LPMFactory::AddLPMRule(uint32_t ipv4_address, uint8_t depth, uint8_t nex
     exit(1);
   }
 
-  // bit mask for ipv4 address, we'll strip the redundant number after depth.
-  unsigned long index_mask = 1;
-  for (unsigned int cnt = depth; cnt < 32; cnt++) {
-    index_mask <<= 1;
-    index_mask++;
-  }
-
   // FIXME: Back to 24 mask
   unsigned long int start = ipv4_address >> 16 ;
   unsigned long int end = (ipv4_address >> 16) + 1;
