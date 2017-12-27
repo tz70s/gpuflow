@@ -25,8 +25,10 @@ void L3ForwardGPUCore::LCoreFunctions() {
       unsigned int self_lcore_id = rte_lcore_id();
       unsigned int port_id = (self_lcore_id > 0) ? self_lcore_id -1 : self_lcore_id;
       auto *self = (L3ForwardGPUCore *) arg;
-      cu::CudaASyncLCoreFunction cuda_lcore_function(port_id, self->num_of_eth_devs, self->mac_addresses_ptr);
+      cu::CudaASyncLCoreFunction cuda_lcore_function(port_id, self->num_of_eth_devs, self->mac_addresses_ptr,
+                                                     self->data_plane_lpm_ipv4_gpu.IPv4TBL24);
       cuda_lcore_function.SetupCudaDevices();
+      cuda_lcore_function.CreateProcessingBatchFrame(1, 32);
 
       while (true) {
         struct rte_mbuf *pkts_burst[32];
@@ -34,7 +36,12 @@ void L3ForwardGPUCore::LCoreFunctions() {
         const unsigned int nb_rx = rte_eth_rx_burst(port_id, 0, pkts_burst, 32);
         // Call out cuda function
         if (nb_rx > 0) {
-          cuda_lcore_function.ProcessPacketsBatch(pkts_burst, nb_rx, self->data_plane_lpm_ipv4_gpu.IPv4TBL24);
+          if (cuda_lcore_function.ProcessPacketsBatch(0, pkts_burst, nb_rx) < 0) {
+            // TODO:
+            // Iterate to the next batch.
+            // And pass the same pkts_burst.
+            // Else, go to the next burst.
+          }
         }
       }
       return 0;

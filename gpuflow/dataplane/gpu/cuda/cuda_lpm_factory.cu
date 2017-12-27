@@ -61,7 +61,6 @@ int IPv4LPMFactory::AddLPMRule(uint32_t ipv4_address, uint8_t depth, uint8_t nex
   unsigned long int start = ipv4_address >> 16 ;
   unsigned long int end = (ipv4_address >> 16) + 1;
 
-  std::cout << "Ip addresses from : " << start << ", to " << end << ", port : " << (int) next_hop << std::endl;
   SetupRuleEntry<<<1, end-start>>>(IPv4TBL24, start, next_hop, depth);
   cudaDeviceSynchronize();
   return 0;
