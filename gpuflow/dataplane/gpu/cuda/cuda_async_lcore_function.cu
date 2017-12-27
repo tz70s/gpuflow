@@ -121,6 +121,9 @@ int CudaASyncLCoreFunction::SetupCudaDevices() {
 
 ProcessingBatchFrame::ProcessingBatchFrame(uint8_t _batch_size) : pkts_burst(nullptr), batch_size(_batch_size),
                                                                   busy(false) {
+  for (int i = 0; i < 32; i++) {
+    cudaStreamCreate(&cuda_stream[i]);
+  }
   CudaMallocWithFailOver((void **) &dev_custom_ether_ip_headers_burst, batch_size * sizeof(CustomEtherIPHeader),
                          "dev_custom_ether_ip_headers_burst");
   CudaMallocWithFailOver((void **) &dev_dst_ports_burst, batch_size * sizeof(uint8_t), "dev_dst_ports_burst");
@@ -141,38 +144,43 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(int batch_idx, struct rte_mbuf *
     return -1;
   }
   self_batch->busy = true;
-  cudaStream_t cuda_stream;
-  cudaStreamCreate(&cuda_stream);
   for (uint8_t i = 0; i < nb_rx; ++i) {
     CudaASyncMemcpyWithFailOver(&self_batch->dev_custom_ether_ip_headers_burst[i],
                                 rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *),
                                 sizeof(CustomEtherIPHeader),
                                 cudaMemcpyHostToDevice,
-                                cuda_stream,
+                                self_batch->cuda_stream[i],
                                 "custom_ether_ip_header_memory_copy");
   }
 
-  PacketProcessing<<<1, nb_rx, 0, cuda_stream>>>(self_batch->dev_custom_ether_ip_headers_burst,
-          port_id,
-          self_batch->dev_dst_ports_burst,
-          lpm_table_ptr,
-          dev_mac_addresses_array,
-          nb_rx);
+  for (uint8_t i = 0; i < nb_rx; ++i) {
+    PacketProcessing <<< 1, 1, 0, self_batch->cuda_stream[i]>>>(&self_batch->dev_custom_ether_ip_headers_burst[i],
+            port_id,
+            &self_batch->dev_dst_ports_burst[i],
+            lpm_table_ptr,
+            dev_mac_addresses_array,
+            nb_rx);
+  }
 
-  CudaASyncMemcpyWithFailOver(self_batch->host_dst_ports_burst, self_batch->dev_dst_ports_burst, nb_rx * sizeof(uint8_t),
-                              cudaMemcpyDeviceToHost, cuda_stream, "dev_dst_ports_burst_memory_copy_back");
+  for (uint8_t i = 0; i < nb_rx; ++i) {
+    CudaASyncMemcpyWithFailOver(&self_batch->host_dst_ports_burst[i], &self_batch->dev_dst_ports_burst[i],
+                                sizeof(uint8_t),
+                                cudaMemcpyDeviceToHost, self_batch->cuda_stream[i], "dev_dst_ports_burst_memory_copy_back");
+  }
 
   for (uint8_t index = 0; index < nb_rx; index++) {
     CudaASyncMemcpyWithFailOver(rte_pktmbuf_mtod(self_batch->pkts_burst[index], struct ether_hdr *),
                                 &self_batch->dev_custom_ether_ip_headers_burst[index],
                                 sizeof(ether_hdr),
                                 cudaMemcpyDeviceToHost,
-                                cuda_stream,
+                                self_batch->cuda_stream[index],
                                 "custom_ether_header_memory_copy_back");
   }
 
   // FIXME: Currently, sync here.
-  cudaStreamSynchronize(cuda_stream);
+  for (int i = 0; i < nb_rx; ++i) {
+    cudaStreamSynchronize(self_batch->cuda_stream[i]);
+  }
   cudaDeviceSynchronize();
 
   for (uint8_t i = 0; i < (uint8_t) nb_rx; i++) {

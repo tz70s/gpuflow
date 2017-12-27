@@ -36,6 +36,7 @@ struct ProcessingBatchFrame {
   explicit ProcessingBatchFrame(uint8_t batch_size);
   CustomEtherIPHeader *dev_custom_ether_ip_headers_burst;
   struct rte_mbuf **pkts_burst;
+  cudaStream_t cuda_stream[32];
   uint8_t batch_size;
   uint8_t *dev_dst_ports_burst;
   uint8_t host_dst_ports_burst[32] = { (uint8_t) 254};
