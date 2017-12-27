@@ -8,6 +8,8 @@
 #include <iostream>
 #include "l3_forward_gpu_core.h"
 #include "dataplane/gpu/cuda/cuda_async_lcore_function.h"
+#include <cuda_profiler_api.h>
+#include <signal.h>
 
 namespace gpuflow {
 
@@ -16,9 +18,16 @@ L3ForwardGPUCore::L3ForwardGPUCore(unsigned int num_of_eth_devs, std::vector<eth
   // Nothing to do, currently.
 }
 
+void SignalHandler(int sig_num) {
+  std::cout << "\nExit program via user interrupt " << std::endl;
+  cudaProfilerStop();
+  exit(0);
+}
+
 void L3ForwardGPUCore::LCoreFunctions() {
   unsigned int lcore_id;
   int ret;
+  cudaProfilerStart();
 
   RTE_LCORE_FOREACH_SLAVE(lcore_id) {
     ret = rte_eal_remote_launch([](void *arg) -> int {
@@ -53,6 +62,9 @@ void L3ForwardGPUCore::LCoreFunctions() {
     }
 
   }
+
+  signal(SIGINT, SignalHandler);
+
   rte_eal_mp_wait_lcore();
 }
 

@@ -62,3 +62,6 @@ vendor/
 *.pyc
 *.egg-info/
 scp.sh
+
+# profile data
+timeline.prof
