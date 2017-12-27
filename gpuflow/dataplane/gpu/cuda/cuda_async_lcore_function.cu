@@ -18,7 +18,10 @@
 namespace gpuflow {
 namespace cu {
 
-__device__ void IPv4Processing(struct ipv4_hdr *ipv4_header, struct ether_hdr *ether_header, IPv4RuleEntry *lpm_table_ptr) {
+__device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4RuleEntry *lpm_table_ptr) {
+
+  // Force cast to ipv4 header
+  struct ipv4_hdr *ipv4_header = (struct ipv4_hdr *)&custom_ether_ip_header->ipv6_header;
 
   // Transferring endian, 32-bit
   uint32_t ipv4_addr_le = ((ipv4_header->dst_addr >> 24) & 0xff) |
@@ -35,7 +38,7 @@ __device__ void IPv4Processing(struct ipv4_hdr *ipv4_header, struct ether_hdr *e
   }
 }
 
-__device__ void IPv6Processing(struct ipv6_hdr *ipv6_header, struct ether_hdr *ether_header) {
+__device__ void IPv6Processing(CustomEtherIPHeader *custom_ether_ip_header) {
   printf("Dealing with ipv6 header!\n");
 }
 
@@ -43,19 +46,20 @@ __device__ void EtherCopy(struct ether_hdr *ether_header) {
 
 }
 
-__global__ void PacketProcessing(uint8_t *dev_ptypes_burst,
-                                 struct ipv4_hdr *dev_ipv4_hdr_burst,
-                                 struct ipv6_hdr *dev_ipv6_hdr_burst,
-                                 struct ether_hdr *dev_ether_hdrs_burst,
+__global__ void PacketProcessing(CustomEtherIPHeader *dev_custom_ether_ip_header_ring,
                                  int nb_of_ip_hdrs,
                                  IPv4RuleEntry *lpm_table_ptr) {
   int idx = threadIdx.x;
   if (idx < nb_of_ip_hdrs) {
     // Match up packet types.
-    if(dev_ptypes_burst[idx] == IP_FAMILY::PTYPE_IPV4) {
-      IPv4Processing(&dev_ipv4_hdr_burst[idx], &dev_ether_hdrs_burst[idx], lpm_table_ptr);
-    } else if (dev_ptypes_burst[idx] == IP_FAMILY::PTYPE_IPV6) {
-      IPv6Processing(&dev_ipv6_hdr_burst[idx], &dev_ether_hdrs_burst[idx]);
+    if(dev_custom_ether_ip_header_ring[idx].ether_header.ether_type ==
+            (((ETHER_TYPE_IPv4 >> 8) | (ETHER_TYPE_IPv4 << 8)) & 0xffff)) {
+      // IPv4 header
+      IPv4Processing(&dev_custom_ether_ip_header_ring[idx], lpm_table_ptr);
+    } else if (dev_custom_ether_ip_header_ring[idx].ether_header.ether_type ==
+            (((ETHER_TYPE_IPv6 >> 8) | (ETHER_TYPE_IPv6 << 8)) & 0xffff)) {
+      // IPv6 header
+      IPv6Processing(&dev_custom_ether_ip_header_ring[idx]);
     } else {
       // ignore
     }
@@ -63,87 +67,54 @@ __global__ void PacketProcessing(uint8_t *dev_ptypes_burst,
 }
 
 static inline void CudaMallocWithFailOver(void **predicate, size_t size, const char *predicate_type) {
-  if (cudaMalloc(predicate, size) != cudaSuccess) {
+  cudaError_t error = cudaMalloc(predicate, size);
+  if (error != cudaSuccess) {
     std::cerr << "Device memory allocation on " << predicate_type << " failed, abort." << std::endl;
+    std::cerr << cudaGetErrorName(error) << " " << cudaGetErrorString(error) << std::endl;
     exit(1);
   }
 }
 
 static inline void CudaASyncMemcpyWithFailOver(void *dst, const void *src, size_t size, cudaMemcpyKind kind,
                                        cudaStream_t stream, const char *operation_type) {
-  if (cudaMemcpyAsync(dst, src, size, kind, stream) != cudaSuccess) {
+  cudaError_t error = cudaMemcpyAsync(dst, src, size, kind, stream);
+  if (error != cudaSuccess) {
     std::cerr << "Async Memory copy error on " << operation_type << std::endl;
+    std::cerr << cudaGetErrorName(error) << " " << cudaGetErrorString(error) << std::endl;
     exit(1);
   }
 }
 
-inline int CudaASyncLCoreFunction::SetupCudaDevices(int nb_rx) {
-
-  CudaMallocWithFailOver((void **) &dev_ptypes_burst, nb_rx * sizeof(uint8_t), "dev_ptypes_burst");
-  CudaMallocWithFailOver((void **) &dev_ipv4_hdrs_burst, nb_rx * sizeof(struct ipv4_hdr), "dev_ipv4_hdrs_burst");
-  CudaMallocWithFailOver((void **) &dev_ipv6_hdrs_burst, nb_rx * sizeof(struct ipv6_hdr), "dev_ipv6_hdrs_burst");
-  CudaMallocWithFailOver((void **) &dev_ether_hdrs_burst, nb_rx * sizeof(struct ether_hdr), "dev_ether_hdrs_burst");
+int CudaASyncLCoreFunction::SetupCudaDevices() {
+  CudaMallocWithFailOver((void **) &dev_custom_ether_ip_headers_ring, 256 * sizeof(CustomEtherIPHeader),
+                         "dev_custom_ether_ip_headers_ring");
 
   return 0;
 }
 
 int CudaASyncLCoreFunction::ProcessPacketsBatch(struct rte_mbuf **pkts_burst, int nb_rx,
                                                 IPv4RuleEntry *lpm_table_ptr) {
-  // TODO: Reusable Malloc
-  SetupCudaDevices(nb_rx);
   cudaStream_t cuda_stream;
   cudaStreamCreate(&cuda_stream);
-  for (int i = 0; i < nb_rx; ++i) {
+  for (uint8_t i = 0; i < nb_rx; ++i) {
+
     if (RTE_ETH_IS_IPV4_HDR(pkts_burst[i]->packet_type)) {
-
-      // Ipv4 header, copy ipv4
-      CudaASyncMemcpyWithFailOver(&dev_ipv4_hdrs_burst[i],
-                                 rte_pktmbuf_mtod_offset(pkts_burst[i], struct ipv4_hdr *, sizeof(struct ether_hdr)),
-                                 sizeof(struct ipv4_hdr),
-                                 cudaMemcpyHostToDevice,
-                                 cuda_stream,
-                                 "ipv4_header_memory_copy");
-
-      // Add type into type burst.
-      CudaASyncMemcpyWithFailOver(&dev_ptypes_burst[i],
-                                 &IP_FAMILY::PTYPE_IPV4,
-                                 sizeof(uint8_t),
-                                 cudaMemcpyHostToDevice,
-                                 cuda_stream,
-                                 "ipv4_ptype_memory_copy");
-
-      // Copy ether header
-      CudaASyncMemcpyWithFailOver(&dev_ether_hdrs_burst[i],
-                                 rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *),
-                                 sizeof(struct ether_hdr),
-                                 cudaMemcpyHostToDevice,
-                                 cuda_stream,
-                                 "ipv4_ether_header_memory_copy");
+      CudaASyncMemcpyWithFailOver(&dev_custom_ether_ip_headers_ring[head],
+                                  rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *),
+                                  sizeof(CustomEtherIPHeader),
+                                  cudaMemcpyHostToDevice,
+                                  cuda_stream,
+                                  "custom_ether_ipv4_header_memory_copy");
 
     } else if (RTE_ETH_IS_IPV6_HDR(pkts_burst[i]->packet_type)) {
       // Ipv6 header, copy ipv6 type
-      CudaASyncMemcpyWithFailOver(&dev_ipv6_hdrs_burst[i],
-                                 rte_pktmbuf_mtod_offset(pkts_burst[i], struct ipv6_hdr *, sizeof(struct ether_hdr)),
-                                 sizeof(struct ipv6_hdr),
-                                 cudaMemcpyHostToDevice,
-                                 cuda_stream,
-                                 "ipv6_header_memory_copy");
+      CudaASyncMemcpyWithFailOver(&dev_custom_ether_ip_headers_ring[head],
+                                  rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *),
+                                  sizeof(CustomEtherIPHeader),
+                                  cudaMemcpyHostToDevice,
+                                  cuda_stream,
+                                  "custom_ether_ipv6_header_memory_copy");
 
-      // Add type into type burst.
-      CudaASyncMemcpyWithFailOver(&dev_ptypes_burst[i],
-                                 &IP_FAMILY::PTYPE_IPV6,
-                                 sizeof(uint8_t),
-                                 cudaMemcpyHostToDevice,
-                                 cuda_stream,
-                                 "ipv6_ptype_memory_copy");
-
-      // Copy ether header
-      CudaASyncMemcpyWithFailOver(&dev_ether_hdrs_burst[i],
-                                 rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *),
-                                 sizeof(struct ether_hdr),
-                                 cudaMemcpyHostToDevice,
-                                 cuda_stream,
-                                 "ipv6_ether_header_memory_copy");
     } else {
       struct ether_hdr *ether_header = rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *);
       if (ether_header->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP)) {
@@ -152,21 +123,15 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(struct rte_mbuf **pkts_burst, in
       }
       // Continue, the index will be jumped off on either ethernet header burst, ipv4 header burst or ipv6 header burst.
     }
+    head++;
   }
 
-  PacketProcessing<<<1, nb_rx, 0, cuda_stream>>>(dev_ptypes_burst,
-          dev_ipv4_hdrs_burst,
-          dev_ipv6_hdrs_burst,
-          dev_ether_hdrs_burst,
-          nb_rx, lpm_table_ptr);
-
+  PacketProcessing<<<1, nb_rx, 0, cuda_stream>>>(&dev_custom_ether_ip_headers_ring[head - nb_rx], nb_rx, lpm_table_ptr);
+  // Move on
+  tail += nb_rx;
+  // TODO: Copy back.
   // TODO: After stream copy back, add a callback here, and fire tx transferring.
 
-  // FIXME: Unsafe clean up in the async context.
-  cudaFree(dev_ptypes_burst);
-  cudaFree(dev_ether_hdrs_burst);
-  cudaFree(dev_ipv4_hdrs_burst);
-  cudaFree(dev_ipv6_hdrs_burst);
   return 0;
 }
 

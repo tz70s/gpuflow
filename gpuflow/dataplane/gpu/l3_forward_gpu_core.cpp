@@ -27,6 +27,7 @@ void L3ForwardGPUCore::LCoreFunctions() {
       auto *self = (L3ForwardGPUCore *)arg;
       if (port_id == 0) {
         cu::CudaASyncLCoreFunction cuda_lcore_function(self->num_of_eth_devs, self->mac_addresses_ptr);
+        cuda_lcore_function.SetupCudaDevices();
 
         while (true) {
           struct rte_mbuf *pkts_burst[32];
