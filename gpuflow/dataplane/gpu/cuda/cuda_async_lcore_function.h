@@ -33,21 +33,22 @@ struct CustomEtherIPHeader {
 
 class CudaASyncLCoreFunction {
  public:
-  CudaASyncLCoreFunction(unsigned int num_of_eth_devs, std::vector<ether_addr> *mac_addresses_ptr)
-          : num_of_eth_devs(num_of_eth_devs), mac_addresses_ptr(mac_addresses_ptr), head(0), tail(255) {}
-
+  CudaASyncLCoreFunction(uint8_t _port_id, unsigned int _num_of_eth_devs, std::vector<ether_addr> *_mac_addresses_ptr);
   int SetupCudaDevices();
   int ProcessPacketsBatch(struct rte_mbuf **pkts_burst, int nb_rx, IPv4RuleEntry *lpm_table_ptr);
   ~CudaASyncLCoreFunction() {
     cudaFree(dev_custom_ether_ip_headers_ring);
   }
  private:
+  uint8_t port_id;
   unsigned int num_of_eth_devs;
   std::vector<ether_addr> *mac_addresses_ptr;
   uint8_t head;
   uint8_t tail;
+  ether_addr *dev_mac_addresses_array;
   CustomEtherIPHeader *dev_custom_ether_ip_headers_ring;
-
+  uint8_t host_dst_ports_ring[256] = { (uint8_t) 254 };
+  uint8_t *dev_dst_ports_ring;
 };
 
 } // namespace cu
