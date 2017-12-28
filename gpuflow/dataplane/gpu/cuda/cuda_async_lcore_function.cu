@@ -43,6 +43,9 @@ __device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4
     if (entry->valid_flag) {
       EtherCopy(&custom_ether_ip_header->ether_header, port_id, entry->next_hop, dev_mac_addresses_array);
       *dst_port = entry->next_hop;
+#ifdef _DEBUG
+      printf("Received IPv4 packet, next hop -> %d\n", entry->next_hop);
+#endif
     } else {
       *dst_port = 254;
     }
