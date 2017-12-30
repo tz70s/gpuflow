@@ -120,10 +120,9 @@ int CudaASyncLCoreFunction::SetupCudaDevices() {
 }
 
 ProcessingBatchFrame::ProcessingBatchFrame(uint8_t _batch_size) : pkts_burst(nullptr), batch_size(_batch_size),
-                                                                  busy_counter(32) {
-  for (int i = 0; i < 32; i++) {
-    cudaStreamCreateWithFlags(&cuda_stream[i], cudaStreamNonBlocking);
-  }
+                                                                  busy(false) {
+  cudaStreamCreateWithFlags(&cuda_stream, cudaStreamNonBlocking);
+  cudaMallocHost((void **) &host_custom_ether_ip_headers_burst, batch_size * sizeof(CustomEtherIPHeader));
   CudaMallocWithFailOver((void **) &dev_custom_ether_ip_headers_burst, batch_size * sizeof(CustomEtherIPHeader),
                          "dev_custom_ether_ip_headers_burst");
   CudaMallocWithFailOver((void **) &dev_dst_ports_burst, batch_size * sizeof(uint8_t), "dev_dst_ports_burst");
@@ -136,85 +135,38 @@ void CudaASyncLCoreFunction::CreateProcessingBatchFrame(int num_of_batch, uint8_
   }
 }
 
-int CudaASyncLCoreFunction::ProcessPacketsBatch(int batch_idx, struct rte_mbuf **pkts_burst, int nb_rx) {
+int CudaASyncLCoreFunction::ProcessPacketsBatch(int batch_idx, int nb_rx) {
   auto *self_batch = batch_head[batch_idx];
-  self_batch->pkts_burst = pkts_burst;
-  if (self_batch->busy_counter != 32) {
-    std::cout << "Retrieve a busy batch, error occurred, abort." << std::endl;
-    return -1;
-  }
-  self_batch->busy_counter -= nb_rx;
-  for (uint8_t i = 0; i < nb_rx; ++i) {
-    CudaASyncMemcpyWithFailOver(&self_batch->dev_custom_ether_ip_headers_burst[i],
-                                rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *),
-                                sizeof(CustomEtherIPHeader),
-                                cudaMemcpyHostToDevice,
-                                self_batch->cuda_stream[i],
-                                "custom_ether_ip_header_memory_copy");
-  }
 
-  for (uint8_t i = 0; i < nb_rx; ++i) {
-    PacketProcessing <<< 1, 1, 0, self_batch->cuda_stream[i]>>>(&self_batch->dev_custom_ether_ip_headers_burst[i],
-            port_id,
-            &self_batch->dev_dst_ports_burst[i],
-            lpm_table_ptr,
-            dev_mac_addresses_array,
-            nb_rx);
-  }
+  CudaASyncMemcpyWithFailOver(self_batch->dev_custom_ether_ip_headers_burst,
+                              self_batch->host_custom_ether_ip_headers_burst,
+                              nb_rx * sizeof(CustomEtherIPHeader),
+                              cudaMemcpyHostToDevice,
+                              self_batch->cuda_stream,
+                              "custom_ether_ip_header_memory_copy");
+  PacketProcessing<<<1, nb_rx, 0, self_batch->cuda_stream>>>(self_batch->dev_custom_ether_ip_headers_burst,
+          port_id,
+          self_batch->dev_dst_ports_burst,
+          lpm_table_ptr,
+          dev_mac_addresses_array,
+          nb_rx);
 
-  for (uint8_t i = 0; i < nb_rx; ++i) {
-    CudaASyncMemcpyWithFailOver(&self_batch->host_dst_ports_burst[i], &self_batch->dev_dst_ports_burst[i],
-                                sizeof(uint8_t),
-                                cudaMemcpyDeviceToHost, self_batch->cuda_stream[i], "dev_dst_ports_burst_memory_copy_back");
-  }
+  CudaASyncMemcpyWithFailOver(self_batch->host_dst_ports_burst, self_batch->dev_dst_ports_burst,
+                                nb_rx * sizeof(uint8_t),
+                                cudaMemcpyDeviceToHost, self_batch->cuda_stream, "dev_dst_ports_burst_memory_copy_back");
 
-  for (uint8_t index = 0; index < nb_rx; index++) {
-    CudaASyncMemcpyWithFailOver(rte_pktmbuf_mtod(self_batch->pkts_burst[index], struct ether_hdr *),
-                                &self_batch->dev_custom_ether_ip_headers_burst[index],
-                                sizeof(ether_hdr),
-                                cudaMemcpyDeviceToHost,
-                                self_batch->cuda_stream[index],
-                                "custom_ether_header_memory_copy_back");
-  }
+  CudaASyncMemcpyWithFailOver(self_batch->host_custom_ether_ip_headers_burst,
+                              self_batch->dev_custom_ether_ip_headers_burst,
+                              nb_rx * sizeof(CustomEtherIPHeader),
+                              cudaMemcpyDeviceToHost,
+                              self_batch->cuda_stream,
+                              "custom_ether_header_memory_copy_back");
 
-  for (int i = 0; i < nb_rx; ++i) {
-    // FIXME: Move out this construction
-    SendFrame *send_frame_ptr = new SendFrame(i, self_batch, port_id);
-    cudaStreamAddCallback(self_batch->cuda_stream[i], [](cudaStream_t stream, cudaError_t status, void *send_frame) {
-      SendFrame *send_frame_ptr = (SendFrame *) send_frame;
-      ProcessingBatchFrame *self_batch = send_frame_ptr->batch_frame_ptr;
-      struct rte_mbuf *mbuf = self_batch->pkts_burst[send_frame_ptr->index];
-      if (self_batch->host_dst_ports_burst[send_frame_ptr->index] == (uint8_t) 255) {
-        // Broadcast
-        for (uint8_t port = 0; port < 4; port++) {
-          if (port == send_frame_ptr->self_port) {
-            continue;
-          }
-          int send = rte_eth_tx_burst(port, 0, &mbuf, 1);
-          if (send > 0) {
-            // success
-          } else {
-            // The drop can't be memory aligned in cuda object.
-            // We need to drop at cpp file.
-            // Although, it's not that necessary to drop it.
-          }
-        }
-      } else {
-        if (self_batch->host_dst_ports_burst[send_frame_ptr->index] > (uint8_t) 4) {
-          // Drop out, non configured port.
-        } else {
-          int send = rte_eth_tx_burst(self_batch->host_dst_ports_burst[send_frame_ptr->index], 0, &mbuf, 1);
-          if (send > 0) {
-            // success
-          } else {
-            // drop
-          }
-        }
-      }
-      self_batch->busy_counter++;
-      delete(send_frame_ptr);
-    }, send_frame_ptr, 0);
-  }
+  cudaStreamAddCallback(self_batch->cuda_stream, [](cudaStream_t stream, cudaError_t status, void *self_batch_ptr) {
+    auto *self_batch = (ProcessingBatchFrame *) self_batch_ptr;
+    self_batch->ready_to_burst = true;
+  }, self_batch, 0);
+
   return 0;
 }
 

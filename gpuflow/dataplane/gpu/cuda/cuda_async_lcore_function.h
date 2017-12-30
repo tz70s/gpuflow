@@ -34,21 +34,24 @@ struct CustomEtherIPHeader {
 struct ProcessingBatchFrame {
  public:
   explicit ProcessingBatchFrame(uint8_t batch_size);
+  CustomEtherIPHeader *host_custom_ether_ip_headers_burst;
   CustomEtherIPHeader *dev_custom_ether_ip_headers_burst;
   struct rte_mbuf **pkts_burst;
-  cudaStream_t cuda_stream[32];
+  cudaStream_t cuda_stream;
   uint8_t batch_size;
   uint8_t *dev_dst_ports_burst;
   uint8_t host_dst_ports_burst[32] = { (uint8_t) 254};
-  uint8_t busy_counter;
+  uint8_t nb_rx;
+  bool busy;
+  bool ready_to_burst;
 };
 
 struct SendFrame {
-  SendFrame(uint8_t index, ProcessingBatchFrame *batch_frame, uint8_t port_id)
-          : index(index), batch_frame_ptr(batch_frame), self_port(port_id) {}
-  uint8_t index;
+  SendFrame(ProcessingBatchFrame *batch_frame, uint8_t port_id, uint8_t _nb_rx)
+          : batch_frame_ptr(batch_frame), self_port(port_id), nb_rx(_nb_rx) {}
   ProcessingBatchFrame *batch_frame_ptr;
   uint8_t self_port;
+  uint8_t nb_rx;
 };
 
 class CudaASyncLCoreFunction {
@@ -57,9 +60,9 @@ class CudaASyncLCoreFunction {
                          std::vector<ether_addr> *_mac_addresses_ptr, IPv4RuleEntry *_lpm_table_ptr);
   int SetupCudaDevices();
   void CreateProcessingBatchFrame(int num_of_batch, uint8_t batch_size);
-  int ProcessPacketsBatch(int batch_idx, struct rte_mbuf **pkts_burst, int nb_rx);
- private:
   ProcessingBatchFrame **batch_head;
+  int ProcessPacketsBatch(int batch_idx, int nb_rx);
+ private:
   uint8_t port_id;
   unsigned int num_of_eth_devs;
   std::vector<ether_addr> *mac_addresses_ptr;
