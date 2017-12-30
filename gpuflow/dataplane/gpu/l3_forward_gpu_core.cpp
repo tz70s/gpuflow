@@ -117,8 +117,8 @@ void L3ForwardGPUCore::LCoreFunctions() {
             current_batch->busy = true;
             // Copy data to pinned host memory
             for (uint8_t i = 0; i < nb_rx; ++i) {
-              rte_memcpy(&current_batch->host_custom_ether_ip_headers_burst[current_batch->nb_rx],
-                         rte_pktmbuf_mtod(current_batch->pkts_burst[current_batch->nb_rx], struct ether_hdr*),
+              rte_memcpy(&current_batch->host_custom_ether_ip_headers_burst[current_batch->nb_rx + i],
+                         rte_pktmbuf_mtod(current_batch->pkts_burst[current_batch->nb_rx + i], struct ether_hdr*),
                          sizeof(cu::CustomEtherIPHeader));
             }
             current_batch->nb_rx += nb_rx;

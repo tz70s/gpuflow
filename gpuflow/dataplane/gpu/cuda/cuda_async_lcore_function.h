@@ -46,14 +46,6 @@ struct ProcessingBatchFrame {
   bool ready_to_burst;
 };
 
-struct SendFrame {
-  SendFrame(ProcessingBatchFrame *batch_frame, uint8_t port_id, uint8_t _nb_rx)
-          : batch_frame_ptr(batch_frame), self_port(port_id), nb_rx(_nb_rx) {}
-  ProcessingBatchFrame *batch_frame_ptr;
-  uint8_t self_port;
-  uint8_t nb_rx;
-};
-
 class CudaASyncLCoreFunction {
  public:
   CudaASyncLCoreFunction(uint8_t _port_id, unsigned int _num_of_eth_devs,
