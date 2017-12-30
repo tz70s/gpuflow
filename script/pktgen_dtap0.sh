@@ -9,15 +9,17 @@ TARGET_IP=$1
 function add_dtap() {
     test -e /proc/net/pktgen/dtap0
     if [ $? -ne 0 ] ; then
- 	    echo "add_device dtap0" > /proc/net/pktgen/kpktgend_0
+ 	    echo "add_device dtap0" > /proc/net/pktgen/kpktgend_7
     fi
 }
 
 function set_dtap() {
     echo "min_pkt_size 64" > /proc/net/pktgen/dtap0
-    echo "max_pkt_size 9000" > /proc/net/pktgen/dtap0
-    echo "count 20" > /proc/net/pktgen/dtap0
+    echo "max_pkt_size 64" > /proc/net/pktgen/dtap0
+    # count 0 means transmitting the packets continuously.
+    echo "count 0" > /proc/net/pktgen/dtap0
     echo "dst ${TARGET_IP}" > /proc/net/pktgen/dtap0
+    echo "ratep 2500000" > /proc/net/pktgen/dtap0
 }
 
 function start_dtap() {
