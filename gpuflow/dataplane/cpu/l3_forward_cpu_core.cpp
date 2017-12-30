@@ -36,9 +36,6 @@ void L3ForwardCPUCore::SimpleLPMForward(rte_mbuf *mbuf, unsigned int port_id, in
     unsigned int send = rte_eth_tx_burst((uint8_t) dst_port, 0, &mbuf, 1);
     if (send > 0) {
       // Send
-#ifdef _DEBUG
-      std::cout << "Send from port " << port_id << ", to port " << dst_port << std::endl;
-#endif
     } else {
       // Clean up non-send
       rte_pktmbuf_free(mbuf);

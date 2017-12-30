@@ -36,11 +36,11 @@ struct ProcessingBatchFrame {
   explicit ProcessingBatchFrame(uint8_t batch_size);
   CustomEtherIPHeader *host_custom_ether_ip_headers_burst;
   CustomEtherIPHeader *dev_custom_ether_ip_headers_burst;
-  struct rte_mbuf **pkts_burst;
+  struct rte_mbuf *pkts_burst[32];
   cudaStream_t cuda_stream;
   uint8_t batch_size;
   uint8_t *dev_dst_ports_burst;
-  uint8_t host_dst_ports_burst[32] = { (uint8_t) 254};
+  uint8_t *host_dst_ports_burst;
   uint8_t nb_rx;
   bool busy;
   bool ready_to_burst;
@@ -61,7 +61,7 @@ class CudaASyncLCoreFunction {
   int SetupCudaDevices();
   void CreateProcessingBatchFrame(int num_of_batch, uint8_t batch_size);
   ProcessingBatchFrame **batch_head;
-  int ProcessPacketsBatch(int batch_idx, int nb_rx);
+  int ProcessPacketsBatch(ProcessingBatchFrame *self_batch);
  private:
   uint8_t port_id;
   unsigned int num_of_eth_devs;

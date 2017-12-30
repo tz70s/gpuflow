@@ -119,10 +119,14 @@ int CudaASyncLCoreFunction::SetupCudaDevices() {
   return 0;
 }
 
-ProcessingBatchFrame::ProcessingBatchFrame(uint8_t _batch_size) : pkts_burst(nullptr), batch_size(_batch_size),
+ProcessingBatchFrame::ProcessingBatchFrame(uint8_t _batch_size) : batch_size(_batch_size),
                                                                   busy(false) {
   cudaStreamCreateWithFlags(&cuda_stream, cudaStreamNonBlocking);
   cudaMallocHost((void **) &host_custom_ether_ip_headers_burst, batch_size * sizeof(CustomEtherIPHeader));
+  cudaMallocHost((void **) &host_dst_ports_burst, 32 * sizeof(uint8_t));
+  for (int i = 0; i < 32; i++) {
+    *(host_dst_ports_burst + i) = 254;
+  }
   CudaMallocWithFailOver((void **) &dev_custom_ether_ip_headers_burst, batch_size * sizeof(CustomEtherIPHeader),
                          "dev_custom_ether_ip_headers_burst");
   CudaMallocWithFailOver((void **) &dev_dst_ports_burst, batch_size * sizeof(uint8_t), "dev_dst_ports_burst");
@@ -135,29 +139,29 @@ void CudaASyncLCoreFunction::CreateProcessingBatchFrame(int num_of_batch, uint8_
   }
 }
 
-int CudaASyncLCoreFunction::ProcessPacketsBatch(int batch_idx, int nb_rx) {
-  auto *self_batch = batch_head[batch_idx];
+int CudaASyncLCoreFunction::ProcessPacketsBatch(ProcessingBatchFrame *self_batch) {
 
   CudaASyncMemcpyWithFailOver(self_batch->dev_custom_ether_ip_headers_burst,
                               self_batch->host_custom_ether_ip_headers_burst,
-                              nb_rx * sizeof(CustomEtherIPHeader),
+                              self_batch->nb_rx * sizeof(CustomEtherIPHeader),
                               cudaMemcpyHostToDevice,
                               self_batch->cuda_stream,
                               "custom_ether_ip_header_memory_copy");
-  PacketProcessing<<<1, nb_rx, 0, self_batch->cuda_stream>>>(self_batch->dev_custom_ether_ip_headers_burst,
+
+  PacketProcessing<<<1, self_batch->nb_rx, 0, self_batch->cuda_stream>>>(self_batch->dev_custom_ether_ip_headers_burst,
           port_id,
           self_batch->dev_dst_ports_burst,
           lpm_table_ptr,
           dev_mac_addresses_array,
-          nb_rx);
+          self_batch->nb_rx);
 
   CudaASyncMemcpyWithFailOver(self_batch->host_dst_ports_burst, self_batch->dev_dst_ports_burst,
-                                nb_rx * sizeof(uint8_t),
+                                self_batch->nb_rx * sizeof(uint8_t),
                                 cudaMemcpyDeviceToHost, self_batch->cuda_stream, "dev_dst_ports_burst_memory_copy_back");
 
   CudaASyncMemcpyWithFailOver(self_batch->host_custom_ether_ip_headers_burst,
                               self_batch->dev_custom_ether_ip_headers_burst,
-                              nb_rx * sizeof(CustomEtherIPHeader),
+                              self_batch->nb_rx * sizeof(CustomEtherIPHeader),
                               cudaMemcpyDeviceToHost,
                               self_batch->cuda_stream,
                               "custom_ether_header_memory_copy_back");

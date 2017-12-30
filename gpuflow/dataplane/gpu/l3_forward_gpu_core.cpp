@@ -10,6 +10,7 @@
 #include "dataplane/gpu/cuda/cuda_async_lcore_function.h"
 #include <cuda_profiler_api.h>
 #include <signal.h>
+#include <chrono>
 
 namespace gpuflow {
 
@@ -23,6 +24,7 @@ void SignalHandler(int sig_num) {
   cudaProfilerStop();
   exit(0);
 }
+
 
 void L3ForwardGPUCore::SendOut(cu::ProcessingBatchFrame *batch_ptr, uint8_t self_port) {
   for (int i = 0; i < batch_ptr->nb_rx; ++i) {
@@ -63,7 +65,6 @@ void L3ForwardGPUCore::LCoreFunctions() {
   unsigned int lcore_id;
   int ret;
   cudaProfilerStart();
-
   RTE_LCORE_FOREACH_SLAVE(lcore_id) {
     ret = rte_eal_remote_launch([](void *arg) -> int {
       unsigned int self_lcore_id = rte_lcore_id();
@@ -75,49 +76,68 @@ void L3ForwardGPUCore::LCoreFunctions() {
       int num_of_batches = 10;
       cuda_lcore_function.CreateProcessingBatchFrame(num_of_batches, 32);
       int batch_index = 0;
+      // Start receive time
+      auto base_clock = std::chrono::high_resolution_clock::now();
       while (true) {
-        // Drain tx
+        // At first, we'll drain the current waiting for transferring from all batches.
+        // Due to iterate all the batches, that is, the num of batches should be carefully match.
         for (int i = 0; i < num_of_batches; i++) {
-          // Checkout if batch complete the gpu operations
           auto *local_batch = cuda_lcore_function.batch_head[i];
+          // Checkout if batch complete the gpu operations.
+          // We'll check if the batch is busy, and ready to burst out.
           if (local_batch->busy && local_batch->ready_to_burst) {
             // Burst
             self->SendOut(local_batch, port_id);
             // Set to not busy and not ready to burst
             local_batch->busy = false;
             local_batch->ready_to_burst = false;
+            local_batch->nb_rx = 0;
           }
         }
+        // While if we check the current transferring, we'll going to accept new packet.
+        // Retrieve a free batch.
         auto *current_batch = cuda_lcore_function.batch_head[batch_index];
-        struct rte_mbuf *pkts_burst[32];
-        // Receive
-        const unsigned int nb_rx = rte_eth_rx_burst(port_id, 0, pkts_burst, 32);
-        // Call out cuda function
-        if (nb_rx > 0) {
-          current_batch->pkts_burst = pkts_burst;
-          if (current_batch->busy == true) {
-            std::cout << "Retrieve a busy batch, iterate to next." << std::endl;
-            batch_index++;
-            if (batch_index == 10) {
-              batch_index = 0;
-            }
-            // Iterate to next batch
-            continue;
-          } else {
+        if (current_batch->busy == true) {
+          batch_index++;
+          if (batch_index == num_of_batches) {
+            batch_index = 0;
+          }
+          // Go back to top, for iterate to next batch.
+          // TODO: may consider iterate a round for fetching next batch.
+          continue;
+        }
+        // base line clock time.
+        base_clock = std::chrono::high_resolution_clock::now();
+        while (true) {
+          // Receive num of packets.
+          // The max of 2 receive will be exactly to maximum of batch sizes to avoid overflow.
+          const unsigned int nb_rx = rte_eth_rx_burst(port_id, 0, &current_batch->pkts_burst[current_batch->nb_rx], 16);
+          // Checkout if there's any packet.
+          if (nb_rx > 0) {
             current_batch->busy = true;
             // Copy data to pinned host memory
             for (uint8_t i = 0; i < nb_rx; ++i) {
-              rte_memcpy(&current_batch->host_custom_ether_ip_headers_burst[i],
-                         rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr*),
+              rte_memcpy(&current_batch->host_custom_ether_ip_headers_burst[current_batch->nb_rx],
+                         rte_pktmbuf_mtod(current_batch->pkts_burst[current_batch->nb_rx], struct ether_hdr*),
                          sizeof(cu::CustomEtherIPHeader));
             }
-            current_batch->nb_rx = nb_rx;
-            // TODO: Pass pointer
-            cuda_lcore_function.ProcessPacketsBatch(batch_index++, nb_rx);
-            if (batch_index == 10) {
-              batch_index = 0;
+            current_batch->nb_rx += nb_rx;
+            if (current_batch->nb_rx >= 16) {
+              cuda_lcore_function.ProcessPacketsBatch(current_batch);
+              break;
             }
           }
+          auto current_clock = std::chrono::high_resolution_clock::now();
+          // Interval 500us
+          if (std::chrono::duration_cast<std::chrono::microseconds>(current_clock - base_clock).count() > 500) {
+            if (current_batch->nb_rx > 0) {
+              cuda_lcore_function.ProcessPacketsBatch(current_batch);
+            }
+            break;
+          }
+        }
+        if (batch_index == num_of_batches) {
+          batch_index = 0;
         }
       }
       return 0;
@@ -127,7 +147,6 @@ void L3ForwardGPUCore::LCoreFunctions() {
       std::cerr << "Error occurred on executing DumpPacketCore LCoreFunctions, abort" << std::endl;
       exit(1);
     }
-
   }
 
   signal(SIGINT, SignalHandler);

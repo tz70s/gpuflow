@@ -21,6 +21,7 @@ class L3ForwardGPUCore : public DataPlaneCore {
  public:
   explicit L3ForwardGPUCore(unsigned int num_of_eth_devs, std::vector<ether_addr> *mac_addresses_ptr);
   void LCoreFunctions() override;
+
  private:
   std::vector<ether_addr> *mac_addresses_ptr;
   DataPlaneLPMIPv4GPU data_plane_lpm_ipv4_gpu;
