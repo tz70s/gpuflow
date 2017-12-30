@@ -37,19 +37,25 @@ void L3ForwardGPUCore::LCoreFunctions() {
       cu::CudaASyncLCoreFunction cuda_lcore_function(port_id, self->num_of_eth_devs, self->mac_addresses_ptr,
                                                      self->data_plane_lpm_ipv4_gpu.IPv4TBL24);
       cuda_lcore_function.SetupCudaDevices();
-      cuda_lcore_function.CreateProcessingBatchFrame(1, 32);
-
+      cuda_lcore_function.CreateProcessingBatchFrame(10, 32);
+      int batch_index = 0;
       while (true) {
         struct rte_mbuf *pkts_burst[32];
         // Receive
         const unsigned int nb_rx = rte_eth_rx_burst(port_id, 0, pkts_burst, 32);
         // Call out cuda function
         if (nb_rx > 0) {
-          if (cuda_lcore_function.ProcessPacketsBatch(0, pkts_burst, nb_rx) < 0) {
+#if defined(_DEBUG)
+          std::cout << "Number of receive " << nb_rx << std::endl;
+#endif
+          if (cuda_lcore_function.ProcessPacketsBatch(batch_index++, pkts_burst, nb_rx) < 0) {
             // TODO:
             // Iterate to the next batch.
             // And pass the same pkts_burst.
             // Else, go to the next burst.
+          }
+          if (batch_index == 9) {
+            batch_index = 0;
           }
         }
       }

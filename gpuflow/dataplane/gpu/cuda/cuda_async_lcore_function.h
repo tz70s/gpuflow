@@ -40,7 +40,15 @@ struct ProcessingBatchFrame {
   uint8_t batch_size;
   uint8_t *dev_dst_ports_burst;
   uint8_t host_dst_ports_burst[32] = { (uint8_t) 254};
-  bool busy;
+  uint8_t busy_counter;
+};
+
+struct SendFrame {
+  SendFrame(uint8_t index, ProcessingBatchFrame *batch_frame, uint8_t port_id)
+          : index(index), batch_frame_ptr(batch_frame), self_port(port_id) {}
+  uint8_t index;
+  ProcessingBatchFrame *batch_frame_ptr;
+  uint8_t self_port;
 };
 
 class CudaASyncLCoreFunction {

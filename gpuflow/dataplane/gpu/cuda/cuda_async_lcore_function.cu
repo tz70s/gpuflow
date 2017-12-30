@@ -43,9 +43,6 @@ __device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4
     if (entry->valid_flag) {
       EtherCopy(&custom_ether_ip_header->ether_header, port_id, entry->next_hop, dev_mac_addresses_array);
       *dst_port = entry->next_hop;
-#ifdef _DEBUG
-      printf("Received IPv4 packet, next hop -> %d\n", entry->next_hop);
-#endif
     } else {
       *dst_port = 254;
     }
@@ -123,9 +120,9 @@ int CudaASyncLCoreFunction::SetupCudaDevices() {
 }
 
 ProcessingBatchFrame::ProcessingBatchFrame(uint8_t _batch_size) : pkts_burst(nullptr), batch_size(_batch_size),
-                                                                  busy(false) {
+                                                                  busy_counter(32) {
   for (int i = 0; i < 32; i++) {
-    cudaStreamCreate(&cuda_stream[i]);
+    cudaStreamCreateWithFlags(&cuda_stream[i], cudaStreamNonBlocking);
   }
   CudaMallocWithFailOver((void **) &dev_custom_ether_ip_headers_burst, batch_size * sizeof(CustomEtherIPHeader),
                          "dev_custom_ether_ip_headers_burst");
@@ -140,13 +137,13 @@ void CudaASyncLCoreFunction::CreateProcessingBatchFrame(int num_of_batch, uint8_
 }
 
 int CudaASyncLCoreFunction::ProcessPacketsBatch(int batch_idx, struct rte_mbuf **pkts_burst, int nb_rx) {
-  auto self_batch = batch_head[batch_idx];
+  auto *self_batch = batch_head[batch_idx];
   self_batch->pkts_burst = pkts_burst;
-  if (self_batch->busy) {
+  if (self_batch->busy_counter != 32) {
     std::cout << "Retrieve a busy batch, error occurred, abort." << std::endl;
     return -1;
   }
-  self_batch->busy = true;
+  self_batch->busy_counter -= nb_rx;
   for (uint8_t i = 0; i < nb_rx; ++i) {
     CudaASyncMemcpyWithFailOver(&self_batch->dev_custom_ether_ip_headers_burst[i],
                                 rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *),
@@ -180,43 +177,44 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(int batch_idx, struct rte_mbuf *
                                 "custom_ether_header_memory_copy_back");
   }
 
-  // FIXME: Currently, sync here.
   for (int i = 0; i < nb_rx; ++i) {
-    cudaStreamSynchronize(self_batch->cuda_stream[i]);
-  }
-  cudaDeviceSynchronize();
-
-  for (uint8_t i = 0; i < (uint8_t) nb_rx; i++) {
-    struct rte_mbuf *mbuf = self_batch->pkts_burst[i];
-    if (self_batch->host_dst_ports_burst[i] == (uint8_t) 255) {
-      // Broadcast
-      for (uint8_t port = 0; port < num_of_eth_devs; port++) {
-        if (port == port_id) {
-          continue;
+    // FIXME: Move out this construction
+    SendFrame *send_frame_ptr = new SendFrame(i, self_batch, port_id);
+    cudaStreamAddCallback(self_batch->cuda_stream[i], [](cudaStream_t stream, cudaError_t status, void *send_frame) {
+      SendFrame *send_frame_ptr = (SendFrame *) send_frame;
+      ProcessingBatchFrame *self_batch = send_frame_ptr->batch_frame_ptr;
+      struct rte_mbuf *mbuf = self_batch->pkts_burst[send_frame_ptr->index];
+      if (self_batch->host_dst_ports_burst[send_frame_ptr->index] == (uint8_t) 255) {
+        // Broadcast
+        for (uint8_t port = 0; port < 4; port++) {
+          if (port == send_frame_ptr->self_port) {
+            continue;
+          }
+          int send = rte_eth_tx_burst(port, 0, &mbuf, 1);
+          if (send > 0) {
+            // success
+          } else {
+            // The drop can't be memory aligned in cuda object.
+            // We need to drop at cpp file.
+            // Although, it's not that necessary to drop it.
+          }
         }
-        int send = rte_eth_tx_burst(port, 0, &mbuf, 1);
-        if (send > 0) {
-          // success
-        } else {
-          // The drop can't be memory aligned in cuda object.
-          // We need to drop at cpp file.
-          // Although, it's not that necessary to drop it.
-        }
-      }
-    } else {
-      if (self_batch->host_dst_ports_burst[i] > (uint8_t) num_of_eth_devs) {
-        // Drop out, non configured port.
-        continue;
-      }
-      int send = rte_eth_tx_burst(self_batch->host_dst_ports_burst[i], 0, &mbuf, 1);
-      if (send > 0) {
-        // success
       } else {
-        // drop
+        if (self_batch->host_dst_ports_burst[send_frame_ptr->index] > (uint8_t) 4) {
+          // Drop out, non configured port.
+        } else {
+          int send = rte_eth_tx_burst(self_batch->host_dst_ports_burst[send_frame_ptr->index], 0, &mbuf, 1);
+          if (send > 0) {
+            // success
+          } else {
+            // drop
+          }
+        }
       }
-    }
+      self_batch->busy_counter++;
+      delete(send_frame_ptr);
+    }, send_frame_ptr, 0);
   }
-  self_batch->busy = false;
   return 0;
 }
 
