@@ -11,6 +11,7 @@ from gpuflow_cgroup import Cgroup
 from gpuflow_netns import NetworkNameSpace
 from gpuflow_run import GPUFlowRun
 from gpuflow_install import GPUFlowInstall
+from gpuflow_hugepage import Hugepage
 
 @click.group()
 def MainGroup():
@@ -56,6 +57,30 @@ def netns(source_tap, target_tap, target_ip):
         print e.message
         exit(1)
     click.echo('Set up netns ' + target_tap + '-ns at ' + target_ip)
+
+def removehu(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
+    number = 0
+    try:
+        hu = Hugepage(number)
+    except Exception as e:
+        print e.message
+        exit(1)
+    click.echo('clean the hugepage mapping.')
+    ctx.exit()
+
+@MainGroup.command(help = 'Set up non-NUMA hugepage for DPDK.')
+@click.option('--remove', '-r', is_flag=True, callback=removehu, expose_value=False, is_eager=True, help='remove hugepage')
+@click.option('--number', '-n', default='1024', type=click.INT, help='number of ' + Hugepage.size() + ' hugepages, default 1024')
+def hugepage(number):
+    hu = Hugepage(int(number))
+    try:
+        hu.set_non_numa_pages()
+    except Exception as e:
+        print e.message
+        exit(1)
+    click.echo('Set up ' + str(number) + ' ' + Hugepage.size() + ' non-NUMA hugepage')
 
 if __name__ == '__main__':
     MainGroup()
