@@ -33,7 +33,6 @@ template <typename LPMRoute, typename LookUpType, typename IP_Header>
 class AbstractDataPlaneLPM {
  public:
   virtual uint16_t RoutingTableLookUp(IP_Header *ip_header, uint16_t port_id, int socket_id) = 0;
-
  protected:
   unsigned const int MAX_LPM_ROUTING_RULES = 1024;
   LPMRoute ip_lpm_route_array[5];
@@ -45,7 +44,7 @@ class DataPlaneLPMv4 : public AbstractDataPlaneLPM<route::IPv4LPMRoute, struct r
  public:
   DataPlaneLPMv4();
   uint16_t RoutingTableLookUp(ipv4_hdr *ipv4_header, uint16_t port_id, int socket_id) override ;
-
+  ~DataPlaneLPMv4();
  private:
   void CreateLPMTable(int socket_id) override;
 };
@@ -54,7 +53,7 @@ class DataPlaneLPMv6 : public AbstractDataPlaneLPM<route::IPv6LPMRoute, struct r
  public:
   DataPlaneLPMv6();
   uint16_t RoutingTableLookUp(ipv6_hdr *ipv6_header, uint16_t port_id, int socket_id) override ;
-
+  ~DataPlaneLPMv6();
  private:
   void CreateLPMTable(int socket_id) override;
 };

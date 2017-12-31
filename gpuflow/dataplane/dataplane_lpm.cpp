@@ -23,6 +23,10 @@ DataPlaneLPMv4::DataPlaneLPMv4() {
   CreateLPMTable(0);
 }
 
+DataPlaneLPMv4::~DataPlaneLPMv4() {
+  rte_lpm_free(ip_lpm_lookup_struct[0]);
+}
+
 void DataPlaneLPMv4::CreateLPMTable(int socket_id) {
   char table_name[64];
   snprintf(table_name, sizeof(table_name), "IPV4_L3FWD_LPM_%d", socket_id);
@@ -65,6 +69,10 @@ DataPlaneLPMv6::DataPlaneLPMv6() {
     ip_lpm_route_array[i].if_out = i;
   }
   CreateLPMTable(0);
+}
+
+DataPlaneLPMv6::~DataPlaneLPMv6() {
+  rte_lpm6_free(ip_lpm_lookup_struct[0]);
 }
 
 void DataPlaneLPMv6::CreateLPMTable(int socket_id) {

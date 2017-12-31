@@ -8,8 +8,6 @@
 #include <iostream>
 #include "l3_forward_gpu_core.h"
 #include "dataplane/gpu/cuda/cuda_async_lcore_function.h"
-#include <cuda_profiler_api.h>
-#include <signal.h>
 #include <chrono>
 
 namespace gpuflow {
@@ -18,13 +16,6 @@ L3ForwardGPUCore::L3ForwardGPUCore(unsigned int num_of_eth_devs, std::vector<eth
         : DataPlaneCore(num_of_eth_devs), mac_addresses_ptr(mac_addresses_ptr) {
   // Nothing to do, currently.
 }
-
-void SignalHandler(int sig_num) {
-  std::cout << "\nExit program via user interrupt " << std::endl;
-  cudaProfilerStop();
-  exit(0);
-}
-
 
 void L3ForwardGPUCore::SendOut(cu::ProcessingBatchFrame *batch_ptr, uint8_t self_port) {
   for (int i = 0; i < batch_ptr->nb_rx; ++i) {
@@ -64,7 +55,6 @@ void L3ForwardGPUCore::SendOut(cu::ProcessingBatchFrame *batch_ptr, uint8_t self
 void L3ForwardGPUCore::LCoreFunctions() {
   unsigned int lcore_id;
   int ret;
-  cudaProfilerStart();
   RTE_LCORE_FOREACH_SLAVE(lcore_id) {
     ret = rte_eal_remote_launch([](void *arg) -> int {
       unsigned int self_lcore_id = rte_lcore_id();
@@ -148,9 +138,6 @@ void L3ForwardGPUCore::LCoreFunctions() {
       exit(1);
     }
   }
-
-  signal(SIGINT, SignalHandler);
-
   rte_eal_mp_wait_lcore();
 }
 
