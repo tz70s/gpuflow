@@ -10,7 +10,7 @@
 #include <rte_lpm.h>
 #include <rte_ip.h>
 #include <rte_ether.h>
-#include <dataplane/dataplane_lpm_gpu.h>
+#include <dataplane/gpu/dataplane_lpm_gpu.h>
 #include <dataplane/gpu/cuda/cuda_async_lcore_function.h>
 #include "dataplane/dataplane_core.h"
 #include "dataplane/dataplane_lpm.h"

@@ -1,16 +1,15 @@
-file(GLOB_RECURSE CORE_SOURCES "*.cpp")
-file(GLOB_RECURSE CORE_HEADERS "*.h")
+file(GLOB CORE_SOURCES "*.cpp")
+file(GLOB CORE_HEADERS "*.h")
 
-file(GLOB_RECURSE CORE_CPU_SOURCES "cpu/*.cpp")
-file(GLOB_RECURSE CORE_CPU_HEADERS "cpu/*.h")
-
-file(GLOB_RECURSE CORE_GPU_SOURCES "gpu/*.cpp")
-file(GLOB_RECURSE CORE_GPU_HEADERS "gpu/*.h")
+file(GLOB CORE_CPU_SOURCES "cpu/*.cpp")
+file(GLOB CORE_CPU_HEADERS "cpu/*.h")
 
 if (${CUDA_FOUND})
+    file(GLOB CORE_GPU_SOURCES "gpu/*.cpp")
+    file(GLOB CORE_GPU_HEADERS "gpu/*.h")
     # CU files
-    file(GLOB_RECURSE CORE_GPU_CUDA_HEADERS "gpu/cuda/*.h")
-    file(GLOB_RECURSE CORE_GPU_CUDA_SOURCES "gpu/cuda/*.cu")
+    file(GLOB CORE_GPU_CUDA_HEADERS "gpu/cuda/*.h")
+    file(GLOB CORE_GPU_CUDA_SOURCES "gpu/cuda/*.cu")
     set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -O3 -gencode arch=compute_61,code=sm_61; -std=c++11)
     cuda_add_library(CU_OBJ ${CORE_GPU_CUDA_SOURCES})
 endif()
