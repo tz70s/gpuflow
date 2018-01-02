@@ -22,7 +22,7 @@ void L3ForwardGPUCore::SendOut(cu::ProcessingBatchFrame *batch_ptr, uint8_t self
     struct rte_mbuf *mbuf = batch_ptr->pkts_burst[i];
     struct ether_hdr *ether = rte_pktmbuf_mtod(mbuf, struct ether_hdr *);
     rte_memcpy(ether, &batch_ptr->host_custom_ether_ip_headers_burst[i], sizeof(struct ether_hdr));
-    if (batch_ptr->host_dst_ports_burst[i] == (uint8_t) 255) {
+    if (batch_ptr->host_custom_ether_ip_headers_burst[i].dst_port == (uint8_t) 255) {
       // Broadcast
       for (uint8_t port = 0; port < num_of_eth_devs; port++) {
         if (port == self_port) {
@@ -37,10 +37,10 @@ void L3ForwardGPUCore::SendOut(cu::ProcessingBatchFrame *batch_ptr, uint8_t self
         }
       }
     } else {
-      if (batch_ptr->host_dst_ports_burst[i] > (uint8_t) num_of_eth_devs) {
+      if (batch_ptr->host_custom_ether_ip_headers_burst[i].dst_port > (uint8_t) num_of_eth_devs) {
         // Drop out, non configured port.
       } else {
-        int send = rte_eth_tx_burst(batch_ptr->host_dst_ports_burst[i], 0, &mbuf, 1);
+        int send = rte_eth_tx_burst(batch_ptr->host_custom_ether_ip_headers_burst[i].dst_port, 0, &mbuf, 1);
         if (send > 0) {
           // success
         } else {
@@ -63,8 +63,8 @@ void L3ForwardGPUCore::LCoreFunctions() {
       cu::CudaASyncLCoreFunction cuda_lcore_function(port_id, self->num_of_eth_devs, self->mac_addresses_ptr,
                                                      self->data_plane_lpm_ipv4_gpu.IPv4TBL24);
       cuda_lcore_function.SetupCudaDevices();
-      int num_of_batches = 10;
-      cuda_lcore_function.CreateProcessingBatchFrame(num_of_batches, 32);
+      int num_of_batches = 16;
+      cuda_lcore_function.CreateProcessingBatchFrame(num_of_batches, 128);
       int batch_index = 0;
       // Start receive time
       auto base_clock = std::chrono::high_resolution_clock::now();
@@ -84,50 +84,57 @@ void L3ForwardGPUCore::LCoreFunctions() {
             local_batch->nb_rx = 0;
           }
         }
-        // While if we check the current transferring, we'll going to accept new packet.
-        // Retrieve a free batch.
-        auto *current_batch = cuda_lcore_function.batch_head[batch_index];
-        if (current_batch->busy == true) {
+
+        bool clock_due = false;
+        // base line clock time.
+        base_clock = std::chrono::high_resolution_clock::now();
+        for (int i = 0; i < num_of_batches; i++) {
+          // While if we check the current transferring, we'll going to accept new packet.
+          // Retrieve a free batch.
+          auto *current_batch = cuda_lcore_function.batch_head[batch_index];
+          if (current_batch->busy) {
+            batch_index++;
+            if (batch_index == num_of_batches) {
+              batch_index = 0;
+            }
+            // Go back to top, for iterate to next batch.
+            continue;
+          }
+          while (true) {
+            // Receive num of packets.
+            // The max of 2 receive will be exactly to maximum of batch sizes to avoid overflow.
+            const unsigned int nb_rx = rte_eth_rx_burst(port_id, 0, &current_batch->pkts_burst[current_batch->nb_rx],
+                                                        64);
+            // Checkout if there's any packet.
+            if (nb_rx > 0) {
+              current_batch->busy = true;
+              // Copy data to pinned host memory
+              for (uint8_t i = 0; i < nb_rx; ++i) {
+                rte_memcpy(&current_batch->host_custom_ether_ip_headers_burst[current_batch->nb_rx + i],
+                           rte_pktmbuf_mtod(current_batch->pkts_burst[current_batch->nb_rx + i], struct ether_hdr*),
+                           sizeof(cu::CustomEtherIPHeader) - sizeof(uint8_t));
+              }
+              current_batch->nb_rx += nb_rx;
+              if (current_batch->nb_rx > 64) {
+                cuda_lcore_function.ProcessPacketsBatch(current_batch);
+                break;
+              }
+            }
+            auto current_clock = std::chrono::high_resolution_clock::now();
+            // Interval 200us
+            if (std::chrono::duration_cast<std::chrono::microseconds>(current_clock - base_clock).count() > 200) {
+              if (current_batch->nb_rx > 0) {
+                cuda_lcore_function.ProcessPacketsBatch(current_batch);
+              }
+              clock_due = true;
+              break;
+            }
+          }
           batch_index++;
           if (batch_index == num_of_batches) {
             batch_index = 0;
           }
-          // Go back to top, for iterate to next batch.
-          // TODO: may consider iterate a round for fetching next batch.
-          continue;
-        }
-        // base line clock time.
-        base_clock = std::chrono::high_resolution_clock::now();
-        while (true) {
-          // Receive num of packets.
-          // The max of 2 receive will be exactly to maximum of batch sizes to avoid overflow.
-          const unsigned int nb_rx = rte_eth_rx_burst(port_id, 0, &current_batch->pkts_burst[current_batch->nb_rx], 16);
-          // Checkout if there's any packet.
-          if (nb_rx > 0) {
-            current_batch->busy = true;
-            // Copy data to pinned host memory
-            for (uint8_t i = 0; i < nb_rx; ++i) {
-              rte_memcpy(&current_batch->host_custom_ether_ip_headers_burst[current_batch->nb_rx + i],
-                         rte_pktmbuf_mtod(current_batch->pkts_burst[current_batch->nb_rx + i], struct ether_hdr*),
-                         sizeof(cu::CustomEtherIPHeader));
-            }
-            current_batch->nb_rx += nb_rx;
-            if (current_batch->nb_rx >= 16) {
-              cuda_lcore_function.ProcessPacketsBatch(current_batch);
-              break;
-            }
-          }
-          auto current_clock = std::chrono::high_resolution_clock::now();
-          // Interval 500us
-          if (std::chrono::duration_cast<std::chrono::microseconds>(current_clock - base_clock).count() > 500) {
-            if (current_batch->nb_rx > 0) {
-              cuda_lcore_function.ProcessPacketsBatch(current_batch);
-            }
-            break;
-          }
-        }
-        if (batch_index == num_of_batches) {
-          batch_index = 0;
+          if (clock_due) break;
         }
       }
       return 0;

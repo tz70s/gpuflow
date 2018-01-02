@@ -27,7 +27,7 @@ __device__ void EtherCopy(struct ether_hdr *ether_header, uint8_t port_id, uint8
 }
 
 __device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4RuleEntry *lpm_table_ptr,
-                               uint8_t port_id, ether_addr *dev_mac_addresses_array, uint8_t *dst_port) {
+                               uint8_t port_id, ether_addr *dev_mac_addresses_array) {
 
   // Force cast to ipv4 header
   struct ipv4_hdr *ipv4_header = (struct ipv4_hdr *)&custom_ether_ip_header->ipv6_header;
@@ -42,9 +42,9 @@ __device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4
     IPv4RuleEntry *entry = (lpm_table_ptr + (ipv4_addr_le >> 16));
     if (entry->valid_flag) {
       EtherCopy(&custom_ether_ip_header->ether_header, port_id, entry->next_hop, dev_mac_addresses_array);
-      *dst_port = entry->next_hop;
+      custom_ether_ip_header->dst_port = entry->next_hop;
     } else {
-      *dst_port = 254;
+      custom_ether_ip_header->dst_port = 254;
     }
   }
 }
@@ -55,7 +55,6 @@ __device__ void IPv6Processing(CustomEtherIPHeader *custom_ether_ip_header) {
 
 __global__ void PacketProcessing(CustomEtherIPHeader *dev_custom_ether_ip_header_burst,
                                  uint8_t port_id,
-                                 uint8_t *dev_dst_port_burst,
                                  IPv4RuleEntry *lpm_table_ptr,
                                  ether_addr *dev_mac_addresses_array,
                                  int nb_of_ip_hdrs) {
@@ -65,17 +64,16 @@ __global__ void PacketProcessing(CustomEtherIPHeader *dev_custom_ether_ip_header
     if(dev_custom_ether_ip_header_burst[idx].ether_header.ether_type ==
             (((ETHER_TYPE_IPv4 >> 8) | (ETHER_TYPE_IPv4 << 8)) & 0xffff)) {
       // IPv4 header
-      IPv4Processing(&dev_custom_ether_ip_header_burst[idx], lpm_table_ptr, port_id, dev_mac_addresses_array,
-                     &dev_dst_port_burst[idx]);
+      IPv4Processing(&dev_custom_ether_ip_header_burst[idx], lpm_table_ptr, port_id, dev_mac_addresses_array);
     } else if (dev_custom_ether_ip_header_burst[idx].ether_header.ether_type ==
             (((ETHER_TYPE_IPv6 >> 8) | (ETHER_TYPE_IPv6 << 8)) & 0xffff)) {
       // IPv6 header
       IPv6Processing(&dev_custom_ether_ip_header_burst[idx]);
-      dev_dst_port_burst[idx] = 254;
+      dev_custom_ether_ip_header_burst[idx].dst_port = 254;
     } else if (dev_custom_ether_ip_header_burst[idx].ether_header.ether_type ==
             (((ETHER_TYPE_ARP >> 8) | (ETHER_TYPE_ARP << 8)) & 0xffff)){
       // Send to all
-      dev_dst_port_burst[idx] = 255;
+      dev_custom_ether_ip_header_burst[idx].dst_port = 255;
     }
   }
 }
@@ -113,8 +111,6 @@ int CudaASyncLCoreFunction::SetupCudaDevices() {
                                 cudaMemcpyHostToDevice,
                                 mac_stream, "dev_mac_addresses_array_memory_copy");
   }
-
-
   cudaDeviceSynchronize();
   return 0;
 }
@@ -123,13 +119,11 @@ ProcessingBatchFrame::ProcessingBatchFrame(uint8_t _batch_size) : batch_size(_ba
                                                                   busy(false) {
   cudaStreamCreateWithFlags(&cuda_stream, cudaStreamNonBlocking);
   cudaMallocHost((void **) &host_custom_ether_ip_headers_burst, batch_size * sizeof(CustomEtherIPHeader));
-  cudaMallocHost((void **) &host_dst_ports_burst, 32 * sizeof(uint8_t));
-  for (int i = 0; i < 32; i++) {
-    *(host_dst_ports_burst + i) = 254;
+  for (uint8_t i = 0; i < batch_size; i++) {
+    host_custom_ether_ip_headers_burst[i].dst_port = 254;
   }
   CudaMallocWithFailOver((void **) &dev_custom_ether_ip_headers_burst, batch_size * sizeof(CustomEtherIPHeader),
                          "dev_custom_ether_ip_headers_burst");
-  CudaMallocWithFailOver((void **) &dev_dst_ports_burst, batch_size * sizeof(uint8_t), "dev_dst_ports_burst");
 }
 
 void CudaASyncLCoreFunction::CreateProcessingBatchFrame(int num_of_batch, uint8_t batch_size){
@@ -150,14 +144,9 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(ProcessingBatchFrame *self_batch
 
   PacketProcessing<<<1, self_batch->nb_rx, 0, self_batch->cuda_stream>>>(self_batch->dev_custom_ether_ip_headers_burst,
           port_id,
-          self_batch->dev_dst_ports_burst,
           lpm_table_ptr,
           dev_mac_addresses_array,
           self_batch->nb_rx);
-
-  CudaASyncMemcpyWithFailOver(self_batch->host_dst_ports_burst, self_batch->dev_dst_ports_burst,
-                                self_batch->nb_rx * sizeof(uint8_t),
-                                cudaMemcpyDeviceToHost, self_batch->cuda_stream, "dev_dst_ports_burst_memory_copy_back");
 
   CudaASyncMemcpyWithFailOver(self_batch->host_custom_ether_ip_headers_burst,
                               self_batch->dev_custom_ether_ip_headers_burst,

@@ -10,7 +10,7 @@
 #include <iostream>
 #include <signal.h>
 
-#ifdef _GPU_EXEC
+#if defined(_GPU_EXEC)
 #define GPUFLOW_EXECUTION gpuflow::L3ForwardGPUCore_t
 #include <cuda_profiler_api.h>
 #include "dataplane/gpu/l3_forward_gpu_core.h"
@@ -21,14 +21,14 @@
 
 void SignalHandler(int sig_num) {
   std::cout << "\nExit program via user interrupt " << std::endl;
-#ifdef _GPU_EXEC
+#if defined(_GPU_EXEC)
   cudaProfilerStop();
 #endif
   exit(0);
 }
 
 int main(int argc, char *argv[]) {
-#ifdef _GPU_EXEC
+#if defined(_GPU_EXEC)
   cudaProfilerStart();
 #endif
   signal(SIGINT, SignalHandler);
