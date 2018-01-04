@@ -23,6 +23,18 @@ class DataPlaneLPMIPv4GPU {
   int CreateLPMTable();
 };
 
+class DataPlaneLPMIPv6GPU {
+ public:
+  DataPlaneLPMIPv6GPU();
+
+  //Delegate pointer on this class.
+  IPv6RuleEntry *IPv6TBL24;
+ 
+ private:
+  cu::IPv6LPMFactory ipv6_lpm_factory;
+  int CreateLPMTable();
+};
+
 } // namespace gpuflow
 
 #endif // _DATAPLANE_LPM_GPU_H_

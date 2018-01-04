@@ -37,6 +37,7 @@ __global__ void InitIPv6LPMTable(IPv6RuleEntry *ipv6_tbl_24) {
   ipv6_tbl_24[idx].valid_flag = false;
   ipv6_tbl_24[idx].depth = 0;
   ipv6_tbl_24[idx].external_flag = false;
+  ipv6_tbl_24[idx].tbl8_ptr = nullptr;
 }
 
 // Create LPM Table

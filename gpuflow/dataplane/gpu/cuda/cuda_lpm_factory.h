@@ -28,6 +28,7 @@ struct IPv6RuleEntry {
   uint8_t depth;
   IPv6RuleEntry *tbl8_ptr;
 };
+
 namespace cu {
 
 class IPv4LPMFactory {
