@@ -20,6 +20,14 @@ struct IPv4RuleEntry {
   uint8_t depth;
 };
 
+struct IPv6RuleEntry {
+  uint8_t next_hop;
+  bool valid_flag;
+  // The external flag will be used when the depth exceed 24 bits.
+  bool external_flag;
+  uint8_t depth;
+  IPv6RuleEntry *tbl8_ptr;
+};
 namespace cu {
 
 class IPv4LPMFactory {
@@ -40,6 +48,24 @@ class IPv4LPMFactory {
   int AddLPMRule(uint32_t ipv4_address, uint8_t depth, uint8_t next_hop);
   ~IPv4LPMFactory() {
     cudaFree(IPv4TBL24);
+  }
+};
+
+class IPv6LPMFactory {
+ public:
+  IPv6LPMFactory() : IPv6TBL24(nullptr) {
+    // 2 ^ 24 rules
+    MAX_LPM_ROUTING_RULES = 1;
+    for (int i = 0; i < 24; i++) {
+      MAX_LPM_ROUTING_RULES *= 2;
+    }
+  }
+  unsigned const int MAX_DEPTH = 24;
+  unsigned long MAX_LPM_ROUTING_RULES;
+  IPv6RuleEntry *IPv6TBL24;
+  int CreateLPMTable();
+  ~IPv6LPMFactory() {
+    cudaFree(IPv6TBL24);
   }
 };
 

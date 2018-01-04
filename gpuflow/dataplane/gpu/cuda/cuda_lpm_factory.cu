@@ -31,6 +31,14 @@ __global__ void InitLPMTable(IPv4RuleEntry *ipv4_tbl_24) {
   ipv4_tbl_24[idx].external_flag = false;
 }
 
+__global__ void InitIPv6LPMTable(IPv6RuleEntry *ipv6_tbl_24) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  ipv6_tbl_24[idx].next_hop = 254;
+  ipv6_tbl_24[idx].valid_flag = false;
+  ipv6_tbl_24[idx].depth = 0;
+  ipv6_tbl_24[idx].external_flag = false;
+}
+
 // Create LPM Table
 int IPv4LPMFactory::CreateLPMTable() {
   // Allocate lpm table sizes
@@ -41,6 +49,17 @@ int IPv4LPMFactory::CreateLPMTable() {
   std::cout << "Initialized lpm entries" << std::endl;
   return 0;
 }
+
+// Create IPv6 LPM Table
+int IPv6LPMFactory::CreateLPMTable() {
+  // Allocate ipv6 lpm table size
+  CudaMallocWithFailOver((void **)&IPv6TBL24, MAX_LPM_ROUTING_RULES * sizeof(IPv6RuleEntry), "IPv6TBL24");
+  unsigned long num_of_threads = 2048;
+  InitIPv6LPMTable<<<MAX_LPM_ROUTING_RULES/num_of_threads, num_of_threads>>>(IPv6TBL24);
+  cudaDeviceSynchronize();
+  std::cout << "Initialized ipv6 lpm entries" << std::endl;
+  return 0;
+};
 
 __global__ void SetupRuleEntry(IPv4RuleEntry *ipv4_tbl_24, unsigned long int start, uint8_t next_hop, uint8_t depth) {
   int idx = threadIdx.x;
