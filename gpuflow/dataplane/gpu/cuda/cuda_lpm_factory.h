@@ -61,10 +61,11 @@ class IPv6LPMFactory {
       MAX_LPM_ROUTING_RULES *= 2;
     }
   }
-  unsigned const int MAX_DEPTH = 24;
+  unsigned const int MAX_DEPTH = 128;
   unsigned long MAX_LPM_ROUTING_RULES;
   IPv6RuleEntry *IPv6TBL24;
   int CreateLPMTable();
+  int AddLPMRule(uint8_t *ipv6_address, uint8_t depth, uint8_t next_hop);
   ~IPv6LPMFactory() {
     cudaFree(IPv6TBL24);
   }

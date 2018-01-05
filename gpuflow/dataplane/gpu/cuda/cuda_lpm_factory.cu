@@ -86,5 +86,87 @@ int IPv4LPMFactory::AddLPMRule(uint32_t ipv4_address, uint8_t depth, uint8_t nex
   return 0;
 }
 
+__global__ void SetupIPv6RuleEntry(IPv6RuleEntry *ipv6_tbl_24, unsigned long int start, uint8_t next_hop, uint8_t depth) {
+  int idx = threadIdx.x;
+  if (ipv6_tbl_24[start + idx].valid_flag && (ipv6_tbl_24[start + idx].depth > depth)) {
+    // There's an existed rule and longer, abort this update
+  } else {
+    // Add the new rule
+    // TODO
+    // Currently, we only handle with the case of depth <= 24 
+    // The case of depth > 24 using the tbl8 table has not been implemented.
+    ipv6_tbl_24[start + idx].next_hop = next_hop;
+    ipv6_tbl_24[start + idx].valid_flag = true;
+    ipv6_tbl_24[start + idx].external_flag = false;
+    ipv6_tbl_24[start + idx].depth = depth;
+    ipv6_tbl_24[start + idx].tbl8_ptr = nullptr;
+  }
+}
+
+int IPv6LPMFactory::AddLPMRule(uint8_t *ipv6_address, uint8_t depth, uint8_t next_hop) {
+  if(depth > MAX_DEPTH) {
+    std::cerr << "The depth can't be longer than 128" << std::endl;
+    exit(1);
+  }
+  unsigned long int start;
+  unsigned long int end;
+  if (depth == 24) {
+    // The depth is exactly 24
+
+    start = ipv6_address[0] << 16 | ipv6_address[1] << 8 | ipv6_address[2];
+    end = ipv6_address[0] << 16 | ipv6_address[1] << 8 | ipv6_address[2] + 1;
+
+  } else if (16 <= depth < 24) {
+    // The depth is in the range of 16-23.
+    // First, calculate the distance between end and start.
+    unsigned long int distance = 1;
+    for(unsigned long int i = 0; i < (24 - depth); i++) {
+      distance *= 2;
+    }
+
+    // Calculate the  start and end.
+    unsigned long int right_shift = ipv6_address[2] >> (24 - depth); 
+    start = ipv6_address[0] << 16 | ipv6_address[1] << 8 | right_shift << (24 - depth);
+    end = ipv6_address[0] << 16 | ipv6_address[1] << 8 | right_shift << (24 - depth) + distance;
+
+  } else if (8 <= depth < 16) {
+    // The depth is in the range of 8-15
+    // First, calculate the distance between end and start.
+    unsigned long int distance = 1;
+    for(unsigned long int i = 0; i < (24 - depth); i++) {
+      distance *= 2;
+    }
+
+    // Calculate the start and end.
+    unsigned long int right_shift = ipv6_address[1] >> (16 - depth);
+    start = ipv6_address[0] << 16 | right_shift << (24 - depth);
+    end = ipv6_address[0] << 16 | right_shift << (24 - depth) + distance;
+
+  } else if (0 <= depth < 8) {
+    // The depth is in the range of 0-7
+    // First, calculate the distance between end and start.
+    unsigned long int distance = 1;
+    for(unsigned long int i = 0; i < (24 - depth); i++) {
+      distance *= 2;
+    }
+
+    // Calculate the start and end.
+    unsigned long int right_shift = ipv6_address[0] >> (8 -depth);
+    start = right_shift << (24 - depth);
+    end = right_shift << (24 - depth) + distance;
+      
+  } else {
+    // TODO
+    // The depth is larger than 24
+    start = ipv6_address[0] << 16 | ipv6_address[1] << 8 | ipv6_address[2];
+    end = ipv6_address[0] << 16 | ipv6_address[1] << 8 | ipv6_address[2] + 1;
+
+  }
+
+  SetupIPv6RuleEntry<<<1, end -start>>>(IPv6TBL24, start, next_hop, depth);
+  cudaDeviceSynchronize();
+  return 0;
+}
+
 } // namespace cu
 } // namespace gpuflow
