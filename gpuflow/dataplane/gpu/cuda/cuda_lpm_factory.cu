@@ -92,9 +92,7 @@ __global__ void SetupIPv6RuleEntry(IPv6RuleEntry *ipv6_tbl_24, unsigned long int
     // There's an existed rule and longer, abort this update
   } else {
     // Add the new rule
-    // TODO
-    // Currently, we only handle with the case of depth <= 24 
-    // The case of depth > 24 using the tbl8 table has not been implemented.
+    // TODO: Currently, we only handle with the case of depth <= 24. The case of depth > 24 using the tbl8 table has not been implemented.
     ipv6_tbl_24[start + idx].next_hop = next_hop;
     ipv6_tbl_24[start + idx].valid_flag = true;
     ipv6_tbl_24[start + idx].external_flag = false;
@@ -142,7 +140,7 @@ int IPv6LPMFactory::AddLPMRule(uint8_t *ipv6_address, uint8_t depth, uint8_t nex
     start = ipv6_address[0] << 16 | right_shift << (24 - depth);
     end = ipv6_address[0] << 16 | right_shift << (24 - depth) + distance;
 
-  } else if (0 <= depth < 8) {
+  } else if (depth < 8) {
     // The depth is in the range of 0-7
     // First, calculate the distance between end and start.
     unsigned long int distance = 1;
@@ -156,8 +154,7 @@ int IPv6LPMFactory::AddLPMRule(uint8_t *ipv6_address, uint8_t depth, uint8_t nex
     end = right_shift << (24 - depth) + distance;
       
   } else {
-    // TODO
-    // The depth is larger than 24
+    // TODO: Handling when depth is larger than 24
     start = ipv6_address[0] << 16 | ipv6_address[1] << 8 | ipv6_address[2];
     end = ipv6_address[0] << 16 | ipv6_address[1] << 8 | ipv6_address[2] + 1;
 

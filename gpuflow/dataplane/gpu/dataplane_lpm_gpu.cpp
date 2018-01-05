@@ -46,12 +46,10 @@ int DataPlaneLPMIPv6GPU::CreateLPMTable() {
   if(ipv6_lpm_factory.CreateLPMTable() < 0) {
     std::cerr << "Create lpm table error from ipv6 lpm factory";  
     exit(1);
-  } else {
-    std::cout << "Create lpm table from ipv6 lpm factory successfully." << std::endl;
   }
+  // TODO: Add ipv6 lpm rules here.
   if (ipv6_lpm_factory.IPv6TBL24 != nullptr) {
     IPv6TBL24 = ipv6_lpm_factory.IPv6TBL24;
-    std::cout << "The IPv6TBL24 pointer is existed" << std::endl;
   } else {
     std::cerr << "The IPv6TBL24 pointer isn't existed" << std::endl;
     exit(1);

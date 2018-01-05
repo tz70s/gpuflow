@@ -49,14 +49,27 @@ __device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4
   }
 }
 
-__device__ void IPv6Processing(CustomEtherIPHeader *custom_ether_ip_header,
+__device__ void IPv6Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv6RuleEntry *lpm6_table_ptr,
                                uint8_t port_id, ether_addr *dev_mac_addresses_array) {
-  // TODO : Add ipv6 processing
+  struct ipv6_hdr *ipv6_header = &custom_ether_ip_header->ipv6_header;
+
+  // TODO: Transferring endian, from be to le.
+
+  // Flow of parsing ipv6 headers
+  // 1. Check lookup first 24 bits.
+  // 2. If the longest matched, and is exactly 24 bits, checkout if there is an external flag.
+  // 3. Recursively checkout tbl8 until there is not matched.
+  // 4. If matched,
+  // 5. Copy the ethernet addresses.
+  // 6. Assign the next hop to the custom_ether_ip_header->dst_port.
+  // 7. If no rules matched,
+  // 8. Assign the custom_ether_ip_header->dst_port = 254
 }
 
 __global__ void PacketProcessing(CustomEtherIPHeader *dev_custom_ether_ip_header_burst,
                                  uint8_t port_id,
                                  IPv4RuleEntry *lpm4_table_ptr,
+                                 IPv6RuleEntry *lpm6_table_ptr,
                                  ether_addr *dev_mac_addresses_array,
                                  int nb_of_ip_hdrs) {
   int idx = threadIdx.x;
@@ -69,7 +82,7 @@ __global__ void PacketProcessing(CustomEtherIPHeader *dev_custom_ether_ip_header
     } else if (dev_custom_ether_ip_header_burst[idx].ether_header.ether_type ==
             (((ETHER_TYPE_IPv6 >> 8) | (ETHER_TYPE_IPv6 << 8)) & 0xffff)) {
       // IPv6 header
-      IPv6Processing(&dev_custom_ether_ip_header_burst[idx], port_id, dev_mac_addresses_array);
+      IPv6Processing(&dev_custom_ether_ip_header_burst[idx], lpm6_table_ptr, port_id, dev_mac_addresses_array);
     } else if (dev_custom_ether_ip_header_burst[idx].ether_header.ether_type ==
             (((ETHER_TYPE_ARP >> 8) | (ETHER_TYPE_ARP << 8)) & 0xffff)){
       // Send to all
@@ -145,6 +158,7 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(ProcessingBatchFrame *self_batch
   PacketProcessing<<<1, self_batch->nb_rx, 0, self_batch->cuda_stream>>>(self_batch->dev_custom_ether_ip_headers_burst,
           port_id,
           lpm4_table_ptr,
+          lpm6_table_ptr,
           dev_mac_addresses_array,
           self_batch->nb_rx);
 
@@ -164,9 +178,10 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(ProcessingBatchFrame *self_batch
 }
 
 CudaASyncLCoreFunction::CudaASyncLCoreFunction(uint8_t _port_id, unsigned int _num_of_eth_devs,
-                                               std::vector<ether_addr> *_mac_addresses_ptr, IPv4RuleEntry *_lpm4_table_ptr)
+                                               std::vector<ether_addr> *_mac_addresses_ptr,
+                                               IPv4RuleEntry *_lpm4_table_ptr, IPv6RuleEntry *_lpm6_table_ptr)
         : port_id(_port_id), num_of_eth_devs(_num_of_eth_devs), mac_addresses_ptr(_mac_addresses_ptr),
-          lpm4_table_ptr(_lpm4_table_ptr) {
+          lpm4_table_ptr(_lpm4_table_ptr), lpm6_table_ptr(_lpm6_table_ptr) {
   // Do nothing
 }
 

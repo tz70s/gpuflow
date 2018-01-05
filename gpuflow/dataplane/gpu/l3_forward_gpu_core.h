@@ -25,6 +25,7 @@ class L3ForwardGPUCore : public DataPlaneCore {
  private:
   std::vector<ether_addr> *mac_addresses_ptr;
   DataPlaneLPMIPv4GPU data_plane_lpm_ipv4_gpu;
+  DataPlaneLPMIPv6GPU data_plane_lpm_ipv6_gpu;
   void SendOut(cu::ProcessingBatchFrame *batch_ptr, uint8_t self_port);
 };
 

@@ -52,7 +52,8 @@ struct ProcessingBatchFrame {
 class CudaASyncLCoreFunction {
  public:
   CudaASyncLCoreFunction(uint8_t _port_id, unsigned int _num_of_eth_devs,
-                         std::vector<ether_addr> *_mac_addresses_ptr, IPv4RuleEntry *_lpm_table_ptr);
+                         std::vector<ether_addr> *_mac_addresses_ptr,
+                         IPv4RuleEntry *_lpm4_table_ptr, IPv6RuleEntry *_lpm6_table_ptr);
   int SetupCudaDevices();
   void CreateProcessingBatchFrame(int num_of_batch, uint8_t batch_size);
   ProcessingBatchFrame **batch_head;
@@ -66,6 +67,7 @@ class CudaASyncLCoreFunction {
   std::vector<ether_addr> *mac_addresses_ptr;
   ether_addr *dev_mac_addresses_array;
   IPv4RuleEntry *lpm4_table_ptr;
+  IPv6RuleEntry *lpm6_table_ptr;
 };
 
 } // namespace cu
