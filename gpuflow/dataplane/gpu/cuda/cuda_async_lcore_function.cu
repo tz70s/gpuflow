@@ -26,7 +26,7 @@ __device__ void EtherCopy(struct ether_hdr *ether_header, uint8_t port_id, uint8
   memcpy(&ether_header->d_addr, &dev_mac_addresses_array[dst_port], sizeof(ether_addr));
 }
 
-__device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4RuleEntry *lpm_table_ptr,
+__device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4RuleEntry *lpm4_table_ptr,
                                uint8_t port_id, ether_addr *dev_mac_addresses_array) {
 
   // Force cast to ipv4 header
@@ -38,8 +38,8 @@ __device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4
           ((ipv4_header->dst_addr >> 8) & 0xff00) |
           ((ipv4_header->dst_addr << 24) & 0xff000000);
 
-  if ((lpm_table_ptr + (ipv4_addr_le >> 16)) != nullptr) {
-    IPv4RuleEntry *entry = (lpm_table_ptr + (ipv4_addr_le >> 16));
+  if ((lpm4_table_ptr + (ipv4_addr_le >> 16)) != nullptr) {
+    IPv4RuleEntry *entry = (lpm4_table_ptr + (ipv4_addr_le >> 16));
     if (entry->valid_flag) {
       EtherCopy(&custom_ether_ip_header->ether_header, port_id, entry->next_hop, dev_mac_addresses_array);
       custom_ether_ip_header->dst_port = entry->next_hop;
@@ -49,13 +49,14 @@ __device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4
   }
 }
 
-__device__ void IPv6Processing(CustomEtherIPHeader *custom_ether_ip_header) {
+__device__ void IPv6Processing(CustomEtherIPHeader *custom_ether_ip_header,
+                               uint8_t port_id, ether_addr *dev_mac_addresses_array) {
   // TODO : Add ipv6 processing
 }
 
 __global__ void PacketProcessing(CustomEtherIPHeader *dev_custom_ether_ip_header_burst,
                                  uint8_t port_id,
-                                 IPv4RuleEntry *lpm_table_ptr,
+                                 IPv4RuleEntry *lpm4_table_ptr,
                                  ether_addr *dev_mac_addresses_array,
                                  int nb_of_ip_hdrs) {
   int idx = threadIdx.x;
@@ -64,12 +65,11 @@ __global__ void PacketProcessing(CustomEtherIPHeader *dev_custom_ether_ip_header
     if(dev_custom_ether_ip_header_burst[idx].ether_header.ether_type ==
             (((ETHER_TYPE_IPv4 >> 8) | (ETHER_TYPE_IPv4 << 8)) & 0xffff)) {
       // IPv4 header
-      IPv4Processing(&dev_custom_ether_ip_header_burst[idx], lpm_table_ptr, port_id, dev_mac_addresses_array);
+      IPv4Processing(&dev_custom_ether_ip_header_burst[idx], lpm4_table_ptr, port_id, dev_mac_addresses_array);
     } else if (dev_custom_ether_ip_header_burst[idx].ether_header.ether_type ==
             (((ETHER_TYPE_IPv6 >> 8) | (ETHER_TYPE_IPv6 << 8)) & 0xffff)) {
       // IPv6 header
-      IPv6Processing(&dev_custom_ether_ip_header_burst[idx]);
-      dev_custom_ether_ip_header_burst[idx].dst_port = 254;
+      IPv6Processing(&dev_custom_ether_ip_header_burst[idx], port_id, dev_mac_addresses_array);
     } else if (dev_custom_ether_ip_header_burst[idx].ether_header.ether_type ==
             (((ETHER_TYPE_ARP >> 8) | (ETHER_TYPE_ARP << 8)) & 0xffff)){
       // Send to all
@@ -144,7 +144,7 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(ProcessingBatchFrame *self_batch
 
   PacketProcessing<<<1, self_batch->nb_rx, 0, self_batch->cuda_stream>>>(self_batch->dev_custom_ether_ip_headers_burst,
           port_id,
-          lpm_table_ptr,
+          lpm4_table_ptr,
           dev_mac_addresses_array,
           self_batch->nb_rx);
 
@@ -164,9 +164,9 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(ProcessingBatchFrame *self_batch
 }
 
 CudaASyncLCoreFunction::CudaASyncLCoreFunction(uint8_t _port_id, unsigned int _num_of_eth_devs,
-                                               std::vector<ether_addr> *_mac_addresses_ptr, IPv4RuleEntry *_lpm_table_ptr)
+                                               std::vector<ether_addr> *_mac_addresses_ptr, IPv4RuleEntry *_lpm4_table_ptr)
         : port_id(_port_id), num_of_eth_devs(_num_of_eth_devs), mac_addresses_ptr(_mac_addresses_ptr),
-          lpm_table_ptr(_lpm_table_ptr) {
+          lpm4_table_ptr(_lpm4_table_ptr) {
   // Do nothing
 }
 

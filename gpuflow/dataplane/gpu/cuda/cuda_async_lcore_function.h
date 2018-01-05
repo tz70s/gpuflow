@@ -65,7 +65,7 @@ class CudaASyncLCoreFunction {
   unsigned int num_of_eth_devs;
   std::vector<ether_addr> *mac_addresses_ptr;
   ether_addr *dev_mac_addresses_array;
-  IPv4RuleEntry *lpm_table_ptr;
+  IPv4RuleEntry *lpm4_table_ptr;
 };
 
 } // namespace cu
