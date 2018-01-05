@@ -47,7 +47,25 @@ int DataPlaneLPMIPv6GPU::CreateLPMTable() {
     std::cerr << "Create lpm table error from ipv6 lpm factory";  
     exit(1);
   }
-  // TODO: Add ipv6 lpm rules here.
+
+  // Add the rule_neighbor_solicitation: Multicst the Neighbor Solicitation packet.
+  uint8_t ipv6_addr_neighbor_solicitation[16] = {0};
+  ipv6_addr_neighbor_solicitation[0] = 255;
+  ipv6_addr_neighbor_solicitation[1] = 2;
+  ipv6_addr_neighbor_solicitation[2] = 0;
+  ipv6_lpm_factory.AddLPMRule(ipv6_addr_neighbor_solicitation, 24, 255);
+
+
+  // Add the rule: Direct the 2220:0i00::/24 packets to port i. 
+  for (uint8_t i = 0; i < 4; i++) {
+    // Ensure explicit initialization
+    uint8_t ipv6_net_addr[16] = {0};
+    ipv6_net_addr[0] = 34;
+    ipv6_net_addr[1] = 32;
+    ipv6_net_addr[2] = i;
+    ipv6_lpm_factory.AddLPMRule(ipv6_net_addr, 24, i);
+  }  
+
   if (ipv6_lpm_factory.IPv6TBL24 != nullptr) {
     IPv6TBL24 = ipv6_lpm_factory.IPv6TBL24;
   } else {
