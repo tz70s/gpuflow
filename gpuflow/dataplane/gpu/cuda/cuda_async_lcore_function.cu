@@ -53,7 +53,13 @@ __device__ void IPv6Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv6
                                uint8_t port_id, ether_addr *dev_mac_addresses_array) {
   struct ipv6_hdr *ipv6_header = &custom_ether_ip_header->ipv6_header;
 
-  // TODO: Transferring endian, from be to le.
+  // Unlike ipv4, we don't have to do edian transfer in ipv6 addr
+  uint8_t *ipv6_addr = ipv6_header->dst_addr;
+  uint8_t *ipv6_src_addr = ipv6_header->src_addr;
+
+  for (int i = 0; i < 16; i++) {
+    printf("ipv6_src_addr[%d]: %d   dst_addr[%d]: %d\n", i, ipv6_src_addr[i], i, ipv6_addr[i]);
+  }
 
   // Flow of parsing ipv6 headers
   // 1. Check lookup first 24 bits.
@@ -64,6 +70,28 @@ __device__ void IPv6Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv6
   // 6. Assign the next hop to the custom_ether_ip_header->dst_port.
   // 7. If no rules matched,
   // 8. Assign the custom_ether_ip_header->dst_port = 254
+
+  unsigned long int ipv6_addr_first24 = ipv6_addr[0] << 16 | ipv6_addr[1] << 8 | ipv6_addr[2];
+  if ((lpm6_table_ptr + ipv6_addr_first24) != nullptr) {
+    IPv6RuleEntry *entry = lpm6_table_ptr + ipv6_addr_first24;
+    if (entry->valid_flag) {
+      // Match first 24 bits
+      if (entry->external_flag) {
+        // TODO: Lookup tbl8 table.
+      } else {
+        // Do not have to lookup tbl8 table
+        if (entry->next_hop == 255) {
+          // Do not copy the ether address
+        } else {
+          EtherCopy(&custom_ether_ip_header->ether_header, port_id, entry->next_hop, dev_mac_addresses_array);
+        }
+        custom_ether_ip_header->dst_port = entry->next_hop;
+      }
+    } else {
+      // Not matched, ignore.
+      custom_ether_ip_header->dst_port = 254;
+    }
+  }
 }
 
 __global__ void PacketProcessing(CustomEtherIPHeader *dev_custom_ether_ip_header_burst,
