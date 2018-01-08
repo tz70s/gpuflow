@@ -42,6 +42,24 @@ void L3ForwardCPUCore::SimpleLPMForward(rte_mbuf *mbuf, unsigned int port_id, in
     }
   } else if (RTE_ETH_IS_IPV6_HDR(mbuf->packet_type)) {
     struct ipv6_hdr *ipv6_header = rte_pktmbuf_mtod_offset(mbuf, ipv6_hdr *, sizeof(ether_hdr));
+    // FIXME: More bounded limitation on broadcasting.
+    if (ipv6_header->proto == IPPROTO_ICMPV6) {
+      // Send the packet to all other ports.
+      for (unsigned int predicates = 0; predicates < num_of_eth_devs; ++predicates) {
+        if (predicates == port_id) {
+          // Don't send to self, continue
+        } else {
+          unsigned int send = rte_eth_tx_burst((uint8_t) predicates, 0, &mbuf, 1);
+          if (send > 0) {
+            // Success, ignore.
+          } else {
+            rte_pktmbuf_free(mbuf);
+          }
+        }
+      }
+      // Force early return
+      return;
+    }
     uint16_t dst_port = data_plane_lpm_v6.RoutingTableLookUp(ipv6_header, (uint16_t) port_id, socket_id);
     if (dst_port >= num_of_eth_devs) {
       dst_port = (uint16_t) port_id;
