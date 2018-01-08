@@ -114,7 +114,7 @@ int IPv6LPMFactory::AddLPMRule(uint8_t *ipv6_address, uint8_t depth, uint8_t nex
     distance *= 2;
   }
 
-  unsigned long int start;
+  unsigned long int start = 0;
   if (depth == 24) {
     // The depth is exactly 24
 
@@ -129,7 +129,7 @@ int IPv6LPMFactory::AddLPMRule(uint8_t *ipv6_address, uint8_t depth, uint8_t nex
     // The depth is in the range of 16-23.
 
     // Calculate the  start
-    unsigned long int right_shift = ipv6_address[2] >> (24 - depth); 
+    unsigned long int right_shift = ipv6_address[2] >> (24 - depth);
     start = ipv6_address[0] << 16 | ipv6_address[1] << 8 | right_shift << (24 - depth);
 
   } else if (depth < 16 && depth >= 8) {
@@ -156,6 +156,8 @@ int IPv6LPMFactory::AddLPMRule(uint8_t *ipv6_address, uint8_t depth, uint8_t nex
   if (distance <= num_of_threads) {
     SetupIPv6RuleEntry<<<1, distance>>>(IPv6TBL24, start, next_hop, depth); 
   } else {
+    // FIXME: Not correct sizes
+    // Assume that distance == 1025 ?
     SetupIPv6RuleEntry<<<distance/num_of_threads, num_of_threads>>>(IPv6TBL24, start, next_hop, depth);
   }
   cudaDeviceSynchronize();

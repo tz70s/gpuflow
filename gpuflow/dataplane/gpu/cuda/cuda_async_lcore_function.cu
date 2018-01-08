@@ -27,7 +27,7 @@ __device__ void EtherCopy(struct ether_hdr *ether_header, uint8_t port_id, uint8
 }
 
 __device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4RuleEntry *lpm4_table_ptr,
-                               uint8_t port_id, ether_addr *dev_mac_addresses_array) {
+                               uint8_t port_id, ether_addr *dev_mac_addresses_array, unsigned int num_of_eth_devs) {
 
   // Force cast to ipv4 header
   struct ipv4_hdr *ipv4_header = (struct ipv4_hdr *)&custom_ether_ip_header->ipv6_header;
@@ -41,7 +41,9 @@ __device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4
   if ((lpm4_table_ptr + (ipv4_addr_le >> 16)) != nullptr) {
     IPv4RuleEntry *entry = (lpm4_table_ptr + (ipv4_addr_le >> 16));
     if (entry->valid_flag) {
-      EtherCopy(&custom_ether_ip_header->ether_header, port_id, entry->next_hop, dev_mac_addresses_array);
+      if (entry->next_hop < num_of_eth_devs) {
+        EtherCopy(&custom_ether_ip_header->ether_header, port_id, entry->next_hop, dev_mac_addresses_array);
+      }
       custom_ether_ip_header->dst_port = entry->next_hop;
     } else {
       custom_ether_ip_header->dst_port = 254;
@@ -50,16 +52,11 @@ __device__ void IPv4Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv4
 }
 
 __device__ void IPv6Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv6RuleEntry *lpm6_table_ptr,
-                               uint8_t port_id, ether_addr *dev_mac_addresses_array) {
+                               uint8_t port_id, ether_addr *dev_mac_addresses_array, unsigned int num_of_eth_devs) {
   struct ipv6_hdr *ipv6_header = &custom_ether_ip_header->ipv6_header;
 
   // Unlike ipv4, we don't have to do edian transfer in ipv6 addr
   uint8_t *ipv6_addr = ipv6_header->dst_addr;
-  uint8_t *ipv6_src_addr = ipv6_header->src_addr;
-
-  for (int i = 0; i < 16; i++) {
-    printf("ipv6_src_addr[%d]: %d   dst_addr[%d]: %d\n", i, ipv6_src_addr[i], i, ipv6_addr[i]);
-  }
 
   // Flow of parsing ipv6 headers
   // 1. Check lookup first 24 bits.
@@ -83,7 +80,9 @@ __device__ void IPv6Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv6
         if (entry->next_hop == 255) {
           // Do not copy the ether address
         } else {
-          EtherCopy(&custom_ether_ip_header->ether_header, port_id, entry->next_hop, dev_mac_addresses_array);
+          if (entry->next_hop < num_of_eth_devs) {
+            EtherCopy(&custom_ether_ip_header->ether_header, port_id, entry->next_hop, dev_mac_addresses_array);
+          }
         }
         custom_ether_ip_header->dst_port = entry->next_hop;
       }
@@ -99,6 +98,7 @@ __global__ void PacketProcessing(CustomEtherIPHeader *dev_custom_ether_ip_header
                                  IPv4RuleEntry *lpm4_table_ptr,
                                  IPv6RuleEntry *lpm6_table_ptr,
                                  ether_addr *dev_mac_addresses_array,
+                                 unsigned int num_of_eth_devs,
                                  int nb_of_ip_hdrs) {
   int idx = threadIdx.x;
   if (idx < nb_of_ip_hdrs) {
@@ -106,11 +106,13 @@ __global__ void PacketProcessing(CustomEtherIPHeader *dev_custom_ether_ip_header
     if(dev_custom_ether_ip_header_burst[idx].ether_header.ether_type ==
             (((ETHER_TYPE_IPv4 >> 8) | (ETHER_TYPE_IPv4 << 8)) & 0xffff)) {
       // IPv4 header
-      IPv4Processing(&dev_custom_ether_ip_header_burst[idx], lpm4_table_ptr, port_id, dev_mac_addresses_array);
+      IPv4Processing(&dev_custom_ether_ip_header_burst[idx], lpm4_table_ptr, port_id, dev_mac_addresses_array,
+                     num_of_eth_devs);
     } else if (dev_custom_ether_ip_header_burst[idx].ether_header.ether_type ==
             (((ETHER_TYPE_IPv6 >> 8) | (ETHER_TYPE_IPv6 << 8)) & 0xffff)) {
       // IPv6 header
-      IPv6Processing(&dev_custom_ether_ip_header_burst[idx], lpm6_table_ptr, port_id, dev_mac_addresses_array);
+      IPv6Processing(&dev_custom_ether_ip_header_burst[idx], lpm6_table_ptr, port_id, dev_mac_addresses_array,
+                     num_of_eth_devs);
     } else if (dev_custom_ether_ip_header_burst[idx].ether_header.ether_type ==
             (((ETHER_TYPE_ARP >> 8) | (ETHER_TYPE_ARP << 8)) & 0xffff)){
       // Send to all
@@ -188,6 +190,7 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(ProcessingBatchFrame *self_batch
           lpm4_table_ptr,
           lpm6_table_ptr,
           dev_mac_addresses_array,
+          num_of_eth_devs,
           self_batch->nb_rx);
 
   CudaASyncMemcpyWithFailOver(self_batch->host_custom_ether_ip_headers_burst,
@@ -198,8 +201,8 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(ProcessingBatchFrame *self_batch
                               "custom_ether_header_memory_copy_back");
 
   cudaStreamAddCallback(self_batch->cuda_stream, [](cudaStream_t stream, cudaError_t status, void *self_batch_ptr) {
-    auto *self_batch = (ProcessingBatchFrame *) self_batch_ptr;
-    self_batch->ready_to_burst = true;
+    auto *_self_batch = (ProcessingBatchFrame *) self_batch_ptr;
+    _self_batch->ready_to_burst = true;
   }, self_batch, 0);
 
   return 0;
