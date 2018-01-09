@@ -73,16 +73,38 @@ __device__ void IPv6Processing(CustomEtherIPHeader *custom_ether_ip_header, IPv6
     IPv6RuleEntry *entry = lpm6_table_ptr + ipv6_addr_first24;
     if (entry->valid_flag) {
       // Match first 24 bits
-      if (entry->external_flag) {
-        // TODO: Lookup tbl8 table.
-      } else {
-        // Do not have to lookup tbl8 table
-        if (entry->next_hop == 255) {
-          // Do not copy the ether address
-        } else {
-          if (entry->next_hop < num_of_eth_devs) {
-            EtherCopy(&custom_ether_ip_header->ether_header, port_id, entry->next_hop, dev_mac_addresses_array);
+      if (entry->external_flag && (entry->tbl8_ptr != nullptr)) {
+        unsigned int shift_index = 3;
+        auto *current = entry->tbl8_ptr;
+        auto *match_entry = entry;
+        while (shift_index < 16) {
+          // Move pointers to indexed rule entry.
+          current = current + ipv6_addr[shift_index++];
+          if ((current != nullptr) && current->valid_flag) {
+            match_entry = current;
+            // Match and existed!
+            if (current->external_flag && (current->tbl8_ptr != nullptr)) {
+              current = current->tbl8_ptr;
+            } else {
+              // Final match
+              if (match_entry->next_hop < num_of_eth_devs) {
+                EtherCopy(&custom_ether_ip_header->ether_header, port_id, current->next_hop, dev_mac_addresses_array);
+              }
+              custom_ether_ip_header->dst_port = match_entry->next_hop;
+              break;
+            }
+          } else {
+            // Final match, try_match is
+            if (match_entry->next_hop < num_of_eth_devs) {
+              EtherCopy(&custom_ether_ip_header->ether_header, port_id, match_entry->next_hop, dev_mac_addresses_array);
+            }
+            custom_ether_ip_header->dst_port = match_entry->next_hop;
+            break;
           }
+        }
+      } else {
+        if (entry->next_hop < num_of_eth_devs) {
+          EtherCopy(&custom_ether_ip_header->ether_header, port_id, entry->next_hop, dev_mac_addresses_array);
         }
         custom_ether_ip_header->dst_port = entry->next_hop;
       }

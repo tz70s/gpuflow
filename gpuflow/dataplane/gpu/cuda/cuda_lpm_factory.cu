@@ -23,30 +23,14 @@ static inline void CudaMallocWithFailOver(void **predicate, size_t size, const c
   }
 }
 
-__global__ void InitLPMTable(IPv4RuleEntry *ipv4_tbl_24) {
+template <typename IPvxRuleEntry>
+__global__ void InitIPvxLPMTable(IPvxRuleEntry *ipvx_tbl_ptr) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  ipv4_tbl_24[idx].next_hop = 254;
-  ipv4_tbl_24[idx].valid_flag = false;
-  ipv4_tbl_24[idx].depth = 0;
-  ipv4_tbl_24[idx].external_flag = false;
-}
-
-__global__ void InitIPv6LPMTable(IPv6RuleEntry *ipv6_tbl_24) {
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  ipv6_tbl_24[idx].next_hop = 254;
-  ipv6_tbl_24[idx].valid_flag = false;
-  ipv6_tbl_24[idx].depth = 0;
-  ipv6_tbl_24[idx].external_flag = false;
-  ipv6_tbl_24[idx].tbl8_ptr = nullptr;
-}
-
-__global__ void InitIPv6TBL8Table(IPv6RuleEntry *ipv6_tbl_8) {
-  int idx = threadIdx.x;
-  ipv6_tbl_8[idx].next_hop = 254;
-  ipv6_tbl_8[idx].valid_flag = false;
-  ipv6_tbl_8[idx].depth = 0;
-  ipv6_tbl_8[idx].external_flag = false;
-  ipv6_tbl_8[idx].tbl8_ptr = nullptr;
+  ipvx_tbl_ptr[idx].next_hop = 254;
+  ipvx_tbl_ptr[idx].valid_flag = false;
+  ipvx_tbl_ptr[idx].depth = 0;
+  ipvx_tbl_ptr[idx].external_flag = false;
+  ipvx_tbl_ptr[idx].tbl8_ptr = nullptr;
 }
 
 // Create LPM Table
@@ -54,7 +38,7 @@ int IPv4LPMFactory::CreateLPMTable() {
   // Allocate lpm table sizes
   CudaMallocWithFailOver((void **)&IPv4TBL24, MAX_LPM_ROUTING_RULES * sizeof(IPv4RuleEntry), "IPv4TBL24");
   unsigned long num_of_threads = 2048;
-  InitLPMTable<<<MAX_LPM_ROUTING_RULES/num_of_threads, num_of_threads>>>(IPv4TBL24);
+  InitIPvxLPMTable<<<MAX_LPM_ROUTING_RULES/num_of_threads, num_of_threads>>>(IPv4TBL24);
   cudaDeviceSynchronize();
   std::cout << "Initialized lpm entries" << std::endl;
   return 0;
@@ -65,7 +49,7 @@ int IPv6LPMFactory::CreateLPMTable() {
   // Allocate ipv6 lpm table size
   CudaMallocWithFailOver((void **)&IPv6TBL24, MAX_LPM_ROUTING_RULES * sizeof(IPv6RuleEntry), "IPv6TBL24");
   unsigned long num_of_threads = 2048;
-  InitIPv6LPMTable<<<MAX_LPM_ROUTING_RULES/num_of_threads, num_of_threads>>>(IPv6TBL24);
+  InitIPvxLPMTable<<<MAX_LPM_ROUTING_RULES/num_of_threads, num_of_threads>>>(IPv6TBL24);
   cudaDeviceSynchronize();
   std::cout << "Initialized ipv6 lpm entries" << std::endl;
   return 0;
@@ -95,12 +79,13 @@ int IPv4LPMFactory::AddLPMRule(uint32_t ipv4_address, uint8_t depth, uint8_t nex
   return 0;
 }
 
-__global__ void SetupIPv6RuleEntry(IPv6RuleEntry *ipv6_tbl_24, unsigned long int start, uint8_t next_hop, uint8_t depth, IPv6RuleEntry *ipv6_tbl_8) {
+__global__ void SetupIPv6RuleEntry(IPv6RuleEntry *ipv6_tbl_24, unsigned long int start, uint8_t next_hop, uint8_t depth,
+                                   IPv6RuleEntry *ipv6_tbl_8) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (ipv6_tbl_24[start + idx].valid_flag && (ipv6_tbl_24[start + idx].depth > depth)) {
     // There's an existed rule and longer, abort this update
   } else {
-    // Add the new rule and TBL24 points to the tbl8 table.
+    // Add new rule with a pointer points to the tbl8 table.
     ipv6_tbl_24[start + idx].next_hop = next_hop;
     ipv6_tbl_24[start + idx].valid_flag = true;
     ipv6_tbl_24[start + idx].depth = depth;
@@ -110,7 +95,8 @@ __global__ void SetupIPv6RuleEntry(IPv6RuleEntry *ipv6_tbl_24, unsigned long int
   }
 }
 
-__global__ void SetupIPv6TBL8RuleEntry(IPv6RuleEntry *ipv6_tbl_8, IPv6RuleEntry *next_tbl_8, unsigned long start, uint8_t next_hop, uint8_t depth) {
+__global__ void SetupIPv6TBL8RuleEntry(IPv6RuleEntry *ipv6_tbl_8, IPv6RuleEntry *next_tbl_8, unsigned long start,
+                                       uint8_t next_hop, uint8_t depth) {
   int idx = threadIdx.x;
   ipv6_tbl_8[start + idx].next_hop = next_hop;
   ipv6_tbl_8[start + idx].valid_flag = true;
@@ -133,8 +119,9 @@ int IPv6LPMFactory::AddLPMRule(uint8_t *ipv6_address, uint8_t depth, uint8_t nex
     }
   }
 
-  IPv6RuleEntry **ipv6_tbl_8_array = nullptr;
+  IPv6RuleEntry *ipv6_tbl8_ptrs[13] = { nullptr };
   unsigned long int start = 0;
+
   if (depth == 24) {
     // The depth is exactly 24
 
@@ -180,32 +167,23 @@ int IPv6LPMFactory::AddLPMRule(uint8_t *ipv6_address, uint8_t depth, uint8_t nex
     }
    
     // Malloc memory in the cuda device,  initialize them and set up the rules. 
-    ipv6_tbl_8_array = new IPv6RuleEntry *[tbl_8_number];
     for (int i = 0; i < tbl_8_number; i++) {
-      CudaMallocWithFailOver((void **)&ipv6_tbl_8_array[i], 256 * sizeof(IPv6RuleEntry), "IPv6TBL8");
-      printf("Malloc ipv6 tbl8 table %d\n", i);
-      InitIPv6TBL8Table<<<1, 256>>>(ipv6_tbl_8_array[i]);
-      printf("Initialize tbl8 %d\n", i);
+      CudaMallocWithFailOver((void **)&ipv6_tbl8_ptrs[i], 256 * sizeof(IPv6RuleEntry), "IPv6TBL8");
+      InitIPvxLPMTable<<<1, 256>>>(ipv6_tbl8_ptrs[i]);
       if (i < (tbl_8_number - 1)) {
         // Not the last tbl8 table
-        SetupIPv6TBL8RuleEntry<<<1, 1>>>(ipv6_tbl_8_array[i], ipv6_tbl_8_array[i + 1], ipv6_address[3 + i], next_hop, depth);
+        SetupIPv6TBL8RuleEntry<<<1, 1>>>(ipv6_tbl8_ptrs[i], ipv6_tbl8_ptrs[i + 1], ipv6_address[3 + i], next_hop, depth);
       } else {
         // The last tbl8 table
-        SetupIPv6TBL8RuleEntry<<<1, tbl_8_last_table_distance>>>(ipv6_tbl_8_array[i], nullptr, ipv6_address[3 + i], next_hop, depth);
+        SetupIPv6TBL8RuleEntry<<<1, tbl_8_last_table_distance>>>(ipv6_tbl8_ptrs[i], nullptr, ipv6_address[3 + i], next_hop, depth);
       }
     }
-
   }
 
   unsigned long num_of_threads = 1024;
   if (distance <= num_of_threads) {
-    if (ipv6_tbl_8_array == nullptr) {
-      // TBL24 does not have to point to the tbl8 table.
-      SetupIPv6RuleEntry<<<1, distance>>>(IPv6TBL24, start, next_hop, depth, nullptr);
-    } else {
-      // TBL24 has to point to the tbl8 table.
-      SetupIPv6RuleEntry<<<1, distance>>>(IPv6TBL24, start, next_hop, depth, ipv6_tbl_8_array[0]);
-    }
+    // TBL24 does not have to point to the tbl8 table.
+    SetupIPv6RuleEntry<<<1, distance>>>(IPv6TBL24, start, next_hop, depth, ipv6_tbl8_ptrs[0]);
   } else {
     // FIXME: Not correct sizes
     // Assume that distance == 1025 ?

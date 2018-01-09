@@ -64,7 +64,14 @@ int DataPlaneLPMIPv6GPU::CreateLPMTable() {
     ipv6_net_addr[1] = 32;
     ipv6_net_addr[2] = i;
     ipv6_lpm_factory.AddLPMRule(ipv6_net_addr, 24, i);
-  }  
+  }
+
+  // Fixed 128 bits rules
+  for (uint8_t i = 0; i < 4; i++) {
+    // 1111:0i0a:0a0a:0a0a:0a0a:0a0a:0a0a:0a0a
+    uint8_t ipv6_full_addr[16] = {17, 17, i, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
+    ipv6_lpm_factory.AddLPMRule(ipv6_full_addr, 128, i);
+  }
 
   if (ipv6_lpm_factory.IPv6TBL24 != nullptr) {
     IPv6TBL24 = ipv6_lpm_factory.IPv6TBL24;

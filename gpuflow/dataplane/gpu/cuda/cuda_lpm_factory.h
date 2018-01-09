@@ -18,6 +18,7 @@ struct IPv4RuleEntry {
   // The external flag will be used when the depth exceed 24 bits.
   bool external_flag;
   uint8_t depth;
+  IPv4RuleEntry *tbl8_ptr;
 };
 
 struct IPv6RuleEntry {
