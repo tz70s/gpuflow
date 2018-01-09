@@ -61,7 +61,8 @@ void L3ForwardGPUCore::LCoreFunctions() {
       unsigned int port_id = (self_lcore_id > 0) ? self_lcore_id -1 : self_lcore_id;
       auto *self = (L3ForwardGPUCore *) arg;
       cu::CudaASyncLCoreFunction cuda_lcore_function(port_id, self->num_of_eth_devs, self->mac_addresses_ptr,
-                                                     self->data_plane_lpm_ipv4_gpu.IPv4TBL24);
+                                                     self->data_plane_lpm_ipv4_gpu.IPv4TBL24,
+                                                     self->data_plane_lpm_ipv6_gpu.IPv6TBL24);
       cuda_lcore_function.SetupCudaDevices();
       int num_of_batches = 16;
       cuda_lcore_function.CreateProcessingBatchFrame(num_of_batches, 128);
