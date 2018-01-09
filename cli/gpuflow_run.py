@@ -19,7 +19,7 @@ class GPUFlowRun:
         gpuflow_bin = self.path + '/build/bin/GPUFlow'
         if os.path.isfile(gpuflow_bin):
             call([gpuflow_bin, '-l', '0-3', '--vdev=net_tap0', '--vdev=net_tap1', '--vdev=net_tap2', 
-                '--vdev=net_tap3', '--master-lcore', '0'])
+                '--vdev=net_tap3', '--master-lcore', '0', '-b', '0000:00:1f.6'])
         else:
             print "GPUFlow program is not existed, did you already build up?"
 
