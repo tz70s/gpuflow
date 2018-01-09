@@ -7,6 +7,9 @@
 
 import click
 import subprocess
+import threading
+import os
+import time
 from gpuflow_cgroup import Cgroup
 from gpuflow_netns import NetworkNameSpace
 from gpuflow_run import GPUFlowRun
@@ -25,9 +28,42 @@ def install(workspace):
 
 @MainGroup.command(help='run the GPUFlow program, pass the root of source directory as workspace')
 @click.argument('workspace')
-def run(workspace):
+@click.option('--limit', '-l', default='0', help='limitation of cpu consumption, must enclosed in 0-1')
+def run(workspace, limit):
     gflow = GPUFlowRun(workspace)
-    gflow.run()
+
+    record = []
+    lock  = threading.Lock()
+    mainup = [-1]
+
+    def mainthread(pid):
+        pid = os.getpid()
+        gflow.run()
+
+    def autocgroup():
+        while (mainup == -1) :
+            print(mainup)
+            time.sleep(1)
+        cg = Cgroup(float(limit))
+        try:
+            cg.create_cg()
+        except Exception as e:
+            print e.message
+            exit(1)
+        click.echo('Set up cgroup limitation : ' + limit)
+
+    thread = threading.Thread(target=mainthread,args=(mainup))
+    thread.start()
+    record.append(thread)
+
+    if float(limit) != 0:
+        thread = threading.Thread(target=autocgroup,args=())
+        thread.start()
+        record.append(thread)
+
+    for thread in record:
+        thread.join()
+
 
 @MainGroup.command(help = 'Set up cgroup in a limitation of cpu consumption')
 @click.option('--limit', '-l', default='0.5', help='limitation of cpu consumption, must enclosed in 0-1')
