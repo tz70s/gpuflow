@@ -33,19 +33,19 @@ void L3ForwardGPUCore::SendOut(cu::ProcessingBatchFrame *batch_ptr, uint8_t self
           // success
         } else {
           // drop
-          rte_pktmbuf_free(mbuf);
         }
       }
     } else {
       if (batch_ptr->host_custom_ether_ip_headers_burst[i].dst_port > (uint8_t) num_of_eth_devs) {
         // Drop out, non configured port.
+      } else if (batch_ptr->host_custom_ether_ip_headers_burst[i].dst_port == self_port) {
+        // Ignore send to me.
       } else {
         int send = rte_eth_tx_burst(batch_ptr->host_custom_ether_ip_headers_burst[i].dst_port, 0, &mbuf, 1);
         if (send > 0) {
           // success
         } else {
           // drop
-          rte_pktmbuf_free(mbuf);
         }
       }
     }
@@ -122,8 +122,8 @@ void L3ForwardGPUCore::LCoreFunctions() {
               }
             }
             auto current_clock = std::chrono::high_resolution_clock::now();
-            // Interval 200us
-            if (std::chrono::duration_cast<std::chrono::microseconds>(current_clock - base_clock).count() > 200) {
+            // Interval 10us
+            if (std::chrono::duration_cast<std::chrono::microseconds>(current_clock - base_clock).count() > 10) {
               if (current_batch->nb_rx > 0) {
                 cuda_lcore_function.ProcessPacketsBatch(current_batch);
               }

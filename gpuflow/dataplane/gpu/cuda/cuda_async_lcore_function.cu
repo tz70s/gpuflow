@@ -200,12 +200,12 @@ void CudaASyncLCoreFunction::CreateProcessingBatchFrame(int num_of_batch, uint8_
 
 int CudaASyncLCoreFunction::ProcessPacketsBatch(ProcessingBatchFrame *self_batch) {
 
-  CudaASyncMemcpyWithFailOver(self_batch->dev_custom_ether_ip_headers_burst,
-                              self_batch->host_custom_ether_ip_headers_burst,
-                              self_batch->nb_rx * sizeof(CustomEtherIPHeader),
-                              cudaMemcpyHostToDevice,
-                              self_batch->cuda_stream,
-                              "custom_ether_ip_header_memory_copy");
+  // Eliminate error checking effort.
+  cudaMemcpyAsync(self_batch->dev_custom_ether_ip_headers_burst,
+                  self_batch->host_custom_ether_ip_headers_burst,
+                  self_batch->nb_rx * sizeof(CustomEtherIPHeader),
+                  cudaMemcpyHostToDevice,
+                  self_batch->cuda_stream);
 
   PacketProcessing<<<1, self_batch->nb_rx, 0, self_batch->cuda_stream>>>(self_batch->dev_custom_ether_ip_headers_burst,
           port_id,
@@ -215,12 +215,11 @@ int CudaASyncLCoreFunction::ProcessPacketsBatch(ProcessingBatchFrame *self_batch
           num_of_eth_devs,
           self_batch->nb_rx);
 
-  CudaASyncMemcpyWithFailOver(self_batch->host_custom_ether_ip_headers_burst,
-                              self_batch->dev_custom_ether_ip_headers_burst,
-                              self_batch->nb_rx * sizeof(CustomEtherIPHeader),
-                              cudaMemcpyDeviceToHost,
-                              self_batch->cuda_stream,
-                              "custom_ether_header_memory_copy_back");
+  cudaMemcpyAsync(self_batch->host_custom_ether_ip_headers_burst,
+                  self_batch->dev_custom_ether_ip_headers_burst,
+                  self_batch->nb_rx * sizeof(CustomEtherIPHeader),
+                  cudaMemcpyDeviceToHost,
+                  self_batch->cuda_stream);
 
   cudaStreamAddCallback(self_batch->cuda_stream, [](cudaStream_t stream, cudaError_t status, void *self_batch_ptr) {
     auto *_self_batch = (ProcessingBatchFrame *) self_batch_ptr;
