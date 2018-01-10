@@ -94,6 +94,13 @@ void DataPlaneLPMv6::CreateLPMTable(int socket_id) {
       std::cerr << "Error occurred on add lpm, abort" << std::endl;
       exit(1);
     }
+    // Fixed full address rule
+    uint8_t ipv6_full_addr[16] = {17, 17, (uint8_t) i, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
+    ret = rte_lpm6_add(ip_lpm_lookup_struct[socket_id], ipv6_full_addr, 128, i);
+    if (ret < 0) {
+      std::cerr << "Error occurred on add lpm, abort" << std::endl;
+      exit(1);
+    }
   }
 }
 
