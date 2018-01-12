@@ -15,6 +15,8 @@ from gpuflow_netns import NetworkNameSpace
 from gpuflow_run import GPUFlowRun
 from gpuflow_install import GPUFlowInstall
 from gpuflow_hugepage import Hugepage
+from gpuflow_pktmont import PacketMonitor
+from gpuflow_pktgen import PacketGenerator
 
 @click.group()
 def MainGroup():
@@ -29,7 +31,8 @@ def install(workspace):
 @MainGroup.command(help='run the GPUFlow program, pass the root of source directory as workspace')
 @click.argument('workspace')
 @click.option('--limit', '-l', default='0', help='limitation of cpu consumption, must enclosed in 0-1')
-def run(workspace, limit):
+@click.option('--monitor', '-m', type=click.STRING, default='not', help='Monitor dtap multi-dtap use \',\' to split ex: dtap0,dtap1, set \'all\' to monitor all dtap at once.')
+def run(workspace, limit, monitor):
     gflow = GPUFlowRun(workspace)
 
     record = []
@@ -37,13 +40,13 @@ def run(workspace, limit):
     mainup = [-1]
 
     def mainthread(pid):
-        pid = os.getpid()
+        mainup[0] = os.getpid()
         gflow.run()
+        mainup[0] = -1
 
     def autocgroup():
-        while (mainup == -1) :
-            print(mainup)
-            time.sleep(1)
+        while (mainup[0] == -1) :
+            continue
         cg = Cgroup(float(limit))
         try:
             cg.create_cg()
@@ -52,14 +55,29 @@ def run(workspace, limit):
             exit(1)
         click.echo('Set up cgroup limitation : ' + limit)
 
+    def automonitor():
+        while (mainup[0] == -1) or not os.path.exists('/sys/class/net/dtap0'):
+            continue
+        pm = PacketMonitor(monitor, 1)
+        try:
+            pm.monitor(mainup)
+        except Exception as e:
+            print e.message
+            exit(1)
+
     thread = threading.Thread(target=mainthread,args=(mainup))
     thread.start()
     record.append(thread)
 
     if float(limit) != 0:
-        thread = threading.Thread(target=autocgroup,args=())
-        thread.start()
-        record.append(thread)
+        thread1 = threading.Thread(target=autocgroup,args=())
+        thread1.start()
+        record.append(thread1)
+
+    if monitor != 'not':
+        thread2 = threading.Thread(target=automonitor,args=())
+        thread2.start()
+        record.append(thread2)
 
     for thread in record:
         thread.join()
@@ -78,10 +96,9 @@ def cgroup(limit):
 
 @MainGroup.command(help = 'Set up netns for forwarding application test')
 @click.option('--source_tap', '-s', type=click.STRING, help='source tap device', required=True)
-@click.option('--target_tap', '-d', type=click.STRING, help='target tap device', required=True)
-@click.option('--target_ip', '-i', default='17.1.2.3', type=click.STRING, help='target ip address in network namespace')
-def netns(source_tap, target_tap, target_ip):
-    ns = NetworkNameSpace(target_tap, target_ip)
+@click.option('--target_tap', '-d', type=click.STRING, help='target tap devices, format of ip setting : -d <tapname>=[ipv4]-[ipv6],<tapname>=[ipv4]-[ipv6], ...', required=True)
+def netns(source_tap, target_tap):
+    ns = NetworkNameSpace(target_tap)
     try:
         ns.create_ns()
     except Exception as e:
@@ -92,7 +109,36 @@ def netns(source_tap, target_tap, target_ip):
     except Exception as e:
         print e.message
         exit(1)
-    click.echo('Set up netns ' + target_tap + '-ns at ' + target_ip)
+    click.echo('Set up netnss')
+
+@MainGroup.command(help = 'Packet generator of tap')
+@click.option('--generator_tap', '-g', default='dtap0', type=click.STRING, help='The tap to generate packets, multi-tap use \',\' to split eg: dtap0,dtap1.')
+@click.option('--min_pkt_size', '-mi', default='64', type=click.STRING, help='Minimum size of packet.')
+@click.option('--max_pkt_size', '-ma', default='64', type=click.STRING, help='Maximum size of packet.')
+@click.option('--count', '-c', default='0', type=click.STRING, help='Sets number of packets to send, set to zero for continuous sends until explicitly stopped.')
+@click.option('--ipv', '-v', default='ipv6', type=click.STRING, help='Version of ip insert \'ipv6\' or \'ipv4\'.')
+@click.option('--dst_ip', '-d', default='1111:010a:0a0a:0a0a:0000:0000:0000:0000~1111:010a:0a0a:0a0a:ffff:ffff:ffff:ffff', type=click.STRING, help='Random the generated ip address from <start ip> to <end ip> format by -d <start ip>~<end ip> or use single ip -d <dst ip>.')
+@click.option('--ratep', '-r', default='2500000', type=click.STRING, help='set rate to <integer>pps')
+def pktgen(generator_tap, min_pkt_size, max_pkt_size, count, ipv, dst_ip, ratep):
+    pg = PacketGenerator(generator_tap, min_pkt_size, max_pkt_size, count, ipv, dst_ip, ratep)
+    try:
+        pg.generate()
+    except Exception as e:
+        print e.message
+        exit(1)
+    click.echo('Generating packets with ' + generator_tap)
+
+@MainGroup.command(help = 'Monitor the dtaps\' TX and RX')
+@click.option('--monitor_dtap', '-m', default='dtap0,dtap1,dtap2,dtap3', type=click.STRING, help='Monitor dtap, multi-dtap use \',\' to split ex: dtap0,dtap1, set \'all\' to monitor all dtap at once.', required=True)
+@click.option('--interval', '-i', default='1', type=click.INT, help='The monitor interval')
+def pktmont(monitor_dtap, interval):
+    pm = PacketMonitor(monitor_dtap, int(interval))
+    try:
+        pm.monitor([1])
+    except Exception as e:
+        print e.message
+        exit(1)
+    click.echo('Monitoring ' + monitor_dtap + ' packets')
 
 def removehu(ctx, param, value):
     if not value or ctx.resilient_parsing:
